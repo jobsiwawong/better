@@ -34,16 +34,16 @@ export function KanbanBoard({
 }) {
   const router = useRouter();
   const [columns, setColumns] = React.useState<BoardColumn[]>(initialColumns);
-  const columnsRef = React.useRef(columns);
+  const [syncedInitialColumns, setSyncedInitialColumns] = React.useState(initialColumns);
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [sortByDueDate, setSortByDueDate] = React.useState(false);
   const [addingColumn, setAddingColumn] = React.useState(false);
   const [newColumnName, setNewColumnName] = React.useState("");
 
-  React.useEffect(() => setColumns(initialColumns), [initialColumns]);
-  React.useEffect(() => {
-    columnsRef.current = columns;
-  }, [columns]);
+  if (initialColumns !== syncedInitialColumns) {
+    setSyncedInitialColumns(initialColumns);
+    setColumns(initialColumns);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -131,7 +131,7 @@ export function KanbanBoard({
     }
 
     const activeId = String(active.id);
-    const destCol = columnsRef.current.find((c) => c.tasks.some((t) => t.id === activeId));
+    const destCol = columns.find((c) => c.tasks.some((t) => t.id === activeId));
     if (!destCol) return;
     const index = destCol.tasks.findIndex((t) => t.id === activeId);
     const before = destCol.tasks[index - 1];
@@ -147,8 +147,7 @@ export function KanbanBoard({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border px-6 py-3">
-        <h1 className="text-lg font-semibold text-foreground">Board</h1>
+      <div className="flex items-center justify-end border-b border-border px-6 py-3">
         <Toggle
           pressed={sortByDueDate}
           onPressedChange={setSortByDueDate}

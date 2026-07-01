@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ import {
   linkNoteToTask,
   moveTask,
   removeAttachment,
+  restoreTask,
   toggleSubtask,
   unlinkNoteFromTask,
   updateTask,
@@ -470,9 +472,16 @@ export function TaskModal({
             variant="ghost"
             className="gap-1.5 text-destructive hover:text-destructive"
             onClick={() => {
+              const title = task.title;
               archiveTask(task.id).then(() => {
                 onOpenChange(false);
                 refresh();
+                toast(`Deleted "${title}"`, {
+                  action: {
+                    label: "Undo",
+                    onClick: () => restoreTask(task.id).then(refresh),
+                  },
+                });
               });
             }}
           >

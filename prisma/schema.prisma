@@ -7,6 +7,11 @@ datasource db {
   provider = "sqlite"
 }
 
+model Settings {
+  id           String @id @default("singleton")
+  passcodeHash String
+}
+
 enum Priority {
   LOW
   MEDIUM

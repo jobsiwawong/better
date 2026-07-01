@@ -21,20 +21,36 @@ const NAV_ITEMS = [
   { href: "/digest", label: "Weekly digest", icon: CalendarDays },
 ];
 
-export function AppSidebar() {
-  const pathname = usePathname();
-  const [collapsed, setCollapsed] = React.useState(false);
+const STORAGE_KEY = "better:sidebar-collapsed";
+let collapsedListeners: Array<() => void> = [];
 
-  React.useEffect(() => {
-    const stored = window.localStorage.getItem("better:sidebar-collapsed");
-    if (stored) setCollapsed(stored === "1");
-  }, []);
+function subscribeCollapsed(callback: () => void) {
+  collapsedListeners.push(callback);
+  return () => {
+    collapsedListeners = collapsedListeners.filter((l) => l !== callback);
+  };
+}
+function getCollapsedSnapshot() {
+  return window.localStorage.getItem(STORAGE_KEY) === "1";
+}
+function getCollapsedServerSnapshot() {
+  return false;
+}
+function setStoredCollapsed(value: boolean) {
+  window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
+  collapsedListeners.forEach((l) => l());
+}
+
+export function AppSidebar({ badgeCount = 0 }: { badgeCount?: number }) {
+  const pathname = usePathname();
+  const collapsed = React.useSyncExternalStore(
+    subscribeCollapsed,
+    getCollapsedSnapshot,
+    getCollapsedServerSnapshot
+  );
 
   const toggle = () => {
-    setCollapsed((prev) => {
-      window.localStorage.setItem("better:sidebar-collapsed", prev ? "0" : "1");
-      return !prev;
-    });
+    setStoredCollapsed(!collapsed);
   };
 
   return (
@@ -71,14 +87,24 @@ export function AppSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                "relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 active && "bg-sidebar-accent text-sidebar-accent-foreground",
                 collapsed && "justify-center px-0"
               )}
               title={collapsed ? item.label : undefined}
             >
               <Icon className="size-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span className="flex-1">{item.label}</span>}
+              {item.href === "/" && badgeCount > 0 && (
+                <span
+                  className={cn(
+                    "flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white",
+                    collapsed && "absolute right-1.5 top-1.5"
+                  )}
+                >
+                  {badgeCount}
+                </span>
+              )}
             </Link>
           );
         })}
