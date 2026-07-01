@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RecurrenceType {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum SavedViewType {
+  BOARD
+  LIST
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  color     String
+  createdAt DateTime   @default(now())
+  taskTags  TaskTag[]
+  noteTags  NoteTag[]
+}
+
+model Owner {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  createdAt DateTime    @default(now())
+  taskOwners TaskOwner[]
+}
+
+model Column {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int
+  color     String?
+  createdAt DateTime @default(now())
+  tasks     Task[]
+}
+
+model Task {
+  id                 String         @id @default(cuid())
+  title              String
+  description        String? // Tiptap JSON, serialized
+  dueDate            DateTime?
+  dueTime            String?
+  priority           Priority       @default(MEDIUM)
+  order              Float          @default(0)
+  recurrenceType     RecurrenceType @default(NONE)
+  recurrenceInterval Int?
+  recurrenceEndDate  DateTime?
+  archived           Boolean        @default(false)
+  deletedAt          DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  column   Column @relation(fields: [columnId], references: [id])
+  columnId String
+
+  tags       TaskTag[]
+  owners     TaskOwner[]
+  subtasks   Subtask[]
+  attachments Attachment[]
+  notes      TaskNote[]
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
+
+model TaskOwner {
+  taskId  String
+  ownerId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  owner   Owner  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, ownerId])
+}
+
+model Subtask {
+  id        String   @id @default(cuid())
+  taskId    String
+  title     String
+  completed Boolean  @default(false)
+  order     Int
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  taskId    String
+  label     String
+  url       String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Note {
+  id             String    @id @default(cuid())
+  title          String
+  content        String? // Tiptap JSON, serialized
+  pinned         Boolean   @default(false)
+  isMeeting      Boolean   @default(false)
+  agenda         String?
+  actionItemsRaw String?
+  archived       Boolean   @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  folder   Folder? @relation(fields: [folderId], references: [id])
+  folderId String?
+
+  tags  NoteTag[]
+  tasks TaskNote[]
+}
+
+model TaskNote {
+  taskId String
+  noteId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, noteId])
+}
+
+model NoteTag {
+  noteId String
+  tagId  String
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  parent   Folder?  @relation("FolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId String?
+  children Folder[] @relation("FolderChildren")
+  notes    Note[]
+}
+
+model SavedView {
+  id        String        @id @default(cuid())
+  name      String
+  type      SavedViewType
+  filters   String // JSON, serialized
+  createdAt DateTime      @default(now())
+}
