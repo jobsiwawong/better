@@ -68,11 +68,17 @@ model Task {
   recurrenceEndDate  DateTime?
   archived           Boolean        @default(false)
   deletedAt          DateTime?
+  completed          Boolean        @default(false)
+  completedAt        DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
   column   Column @relation(fields: [columnId], references: [id])
   columnId String
+
+  parent   Task?  @relation("TaskChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId String?
+  children Task[] @relation("TaskChildren")
 
   tags       TaskTag[]
   owners     TaskOwner[]

@@ -19,17 +19,17 @@ export default async function TodayPage() {
 
   const [overdue, dueToday, upcoming] = await Promise.all([
     db.task.findMany({
-      where: { archived: false, dueDate: { lt: todayStart } },
+      where: { archived: false, completed: false, dueDate: { lt: todayStart } },
       include: { tags: { include: { tag: true } }, owners: { include: { owner: true } } },
       orderBy: { dueDate: "asc" },
     }),
     db.task.findMany({
-      where: { archived: false, dueDate: { gte: todayStart, lte: todayEnd } },
+      where: { archived: false, completed: false, dueDate: { gte: todayStart, lte: todayEnd } },
       include: { tags: { include: { tag: true } }, owners: { include: { owner: true } } },
       orderBy: { dueDate: "asc" },
     }),
     db.task.findMany({
-      where: { archived: false, dueDate: { gt: todayEnd, lte: weekEnd } },
+      where: { archived: false, completed: false, dueDate: { gt: todayEnd, lte: weekEnd } },
       include: { tags: { include: { tag: true } }, owners: { include: { owner: true } } },
       orderBy: { dueDate: "asc" },
     }),

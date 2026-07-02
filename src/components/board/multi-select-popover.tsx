@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,17 +25,21 @@ export function MultiSelectPopover({
   selectedIds,
   onToggle,
   onCreate,
+  onManage,
   placeholder = "Search…",
   triggerLabel,
   emptyLabel = "No results.",
+  manageLabel = "Manage…",
 }: {
   items: PickableItem[];
   selectedIds: string[];
   onToggle: (id: string) => void;
   onCreate?: (name: string) => Promise<{ id: string; name?: string; label?: string }>;
+  onManage?: () => void;
   placeholder?: string;
   triggerLabel: React.ReactNode;
   emptyLabel?: string;
+  manageLabel?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -103,6 +107,19 @@ export function MultiSelectPopover({
                 >
                   <Plus className="size-3.5" />
                   Create &ldquo;{query.trim()}&rdquo;
+                </CommandItem>
+              )}
+              {onManage && !query.trim() && (
+                <CommandItem
+                  value="manage-labels"
+                  onSelect={() => {
+                    setOpen(false);
+                    onManage();
+                  }}
+                  className="text-muted-foreground"
+                >
+                  <Settings2 className="size-3.5" />
+                  {manageLabel}
                 </CommandItem>
               )}
             </CommandGroup>

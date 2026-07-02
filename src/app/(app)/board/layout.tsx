@@ -8,6 +8,7 @@ const TABS = [
   { href: "/board", label: "Kanban", exact: true },
   { href: "/board/list", label: "List" },
   { href: "/board/calendar", label: "Calendar" },
+  { href: "/board/records", label: "Records" },
 ];
 
 export default function BoardLayout({ children }: { children: React.ReactNode }) {

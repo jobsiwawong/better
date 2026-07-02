@@ -22,6 +22,14 @@ function parseDate(value?: string | null) {
   return value ? new Date(value) : null;
 }
 
+function revalidateBoardPages() {
+  revalidatePath("/board");
+  revalidatePath("/board/list");
+  revalidatePath("/board/calendar");
+  revalidatePath("/board/records");
+  revalidatePath("/");
+}
+
 export async function quickCreateTask(title: string, columnId: string) {
   const trimmed = title.trim();
   if (!trimmed) throw new Error("Title is required");
@@ -38,8 +46,7 @@ export async function quickCreateTask(title: string, columnId: string) {
       order: (min._min.order ?? 0) - 1,
     },
   });
-  revalidatePath("/board");
-  revalidatePath("/");
+  revalidateBoardPages();
   return task;
 }
 
@@ -72,8 +79,7 @@ export async function createTask(input: TaskInput) {
         : undefined,
     },
   });
-  revalidatePath("/board");
-  revalidatePath("/");
+  revalidateBoardPages();
   return task;
 }
 
@@ -114,14 +120,13 @@ export async function updateTask(id: string, patch: TaskUpdateInput) {
   }
 
   const task = await db.task.update({ where: { id }, data });
-  revalidatePath("/board");
-  revalidatePath("/");
+  revalidateBoardPages();
   return task;
 }
 
 export async function moveTask(id: string, columnId: string, order: number) {
   await db.task.update({ where: { id }, data: { columnId, order } });
-  revalidatePath("/board");
+  revalidateBoardPages();
 }
 
 export async function archiveTask(id: string) {
@@ -129,8 +134,7 @@ export async function archiveTask(id: string) {
     where: { id },
     data: { archived: true, deletedAt: new Date() },
   });
-  revalidatePath("/board");
-  revalidatePath("/");
+  revalidateBoardPages();
 }
 
 export async function restoreTask(id: string) {
@@ -138,8 +142,52 @@ export async function restoreTask(id: string) {
     where: { id },
     data: { archived: false, deletedAt: null },
   });
-  revalidatePath("/board");
-  revalidatePath("/");
+  revalidateBoardPages();
+}
+
+export async function completeTask(id: string) {
+  await db.task.update({
+    where: { id },
+    data: { completed: true, completedAt: new Date() },
+  });
+  revalidateBoardPages();
+}
+
+export async function uncompleteTask(id: string) {
+  await db.task.update({
+    where: { id },
+    data: { completed: false, completedAt: null },
+  });
+  revalidateBoardPages();
+}
+
+// Nest `childId` as a sub-task of `parentId`. The child moves into the
+// parent's column and keeps its own fields. Single level only.
+export async function nestTask(childId: string, parentId: string) {
+  if (childId === parentId) return;
+
+  const parent = await db.task.findUniqueOrThrow({ where: { id: parentId } });
+  // Don't nest under a task that is itself nested (keep one level deep).
+  if (parent.parentId) return;
+  // Don't nest a task that has its own children (would create depth > 1).
+  const childHasChildren = await db.task.count({ where: { parentId: childId } });
+  if (childHasChildren > 0) return;
+
+  await db.task.update({
+    where: { id: childId },
+    data: { parentId, columnId: parent.columnId },
+  });
+  revalidateBoardPages();
+}
+
+export async function unnestTask(id: string) {
+  await db.task.update({ where: { id }, data: { parentId: null } });
+  revalidateBoardPages();
+}
+
+export async function deleteTaskPermanently(id: string) {
+  await db.task.delete({ where: { id } });
+  revalidateBoardPages();
 }
 
 export async function addSubtask(taskId: string, title: string) {

@@ -2,6 +2,8 @@ import { AppSidebar } from "@/components/app-shell/sidebar";
 import { Topbar } from "@/components/app-shell/topbar";
 import { CommandPalette } from "@/components/app-shell/command-palette";
 import { QuickAdd } from "@/components/app-shell/quick-add";
+import { UndoManager } from "@/components/app-shell/undo-manager";
+import { ManageLabelsDialog } from "@/components/app-shell/manage-labels-dialog";
 import { getTodayBadgeCount } from "@/lib/queries/digest";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,8 @@ export default async function AppLayout({
       </div>
       <CommandPalette />
       <QuickAdd />
+      <UndoManager />
+      <ManageLabelsDialog />
     </div>
   );
 }

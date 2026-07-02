@@ -6,20 +6,35 @@ import {
   DndContext,
   PointerSensor,
   closestCorners,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { toast } from "sonner";
 import { ArrowDownWideNarrow, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { KanbanColumn } from "@/components/board/kanban-column";
 import { TaskModal } from "@/components/board/task-modal";
-import type { BoardData, BoardColumn, BoardTask } from "@/lib/queries/board";
-import { quickCreateTask, moveTask } from "@/app/actions/tasks";
+import type { BoardData, BoardColumn, BoardChildTask, BoardTask } from "@/lib/queries/board";
+import {
+  archiveTask,
+  completeTask,
+  moveTask,
+  nestTask,
+  quickCreateTask,
+  restoreTask,
+  uncompleteTask,
+  unnestTask,
+} from "@/app/actions/tasks";
 import { createColumn, deleteColumn, renameColumn, reorderColumns } from "@/app/actions/columns";
+import { pushUndo, undoSpecific } from "@/lib/undo-store";
+import { useTaskUrlParam } from "@/lib/use-task-url-param";
 
 export function KanbanBoard({
   initialColumns,
@@ -35,10 +50,11 @@ export function KanbanBoard({
   const router = useRouter();
   const [columns, setColumns] = React.useState<BoardColumn[]>(initialColumns);
   const [syncedInitialColumns, setSyncedInitialColumns] = React.useState(initialColumns);
-  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useTaskUrlParam();
   const [sortByDueDate, setSortByDueDate] = React.useState(false);
   const [addingColumn, setAddingColumn] = React.useState(false);
   const [newColumnName, setNewColumnName] = React.useState("");
+  const [dragActiveTaskId, setDragActiveTaskId] = React.useState<string | null>(null);
 
   if (initialColumns !== syncedInitialColumns) {
     setSyncedInitialColumns(initialColumns);
@@ -62,14 +78,85 @@ export function KanbanBoard({
     }));
   }, [columns, sortByDueDate]);
 
-  const selectedTask: BoardTask | null = React.useMemo(() => {
+  const selectedTask: BoardTask | BoardChildTask | null = React.useMemo(() => {
     if (!selectedTaskId) return null;
     for (const c of columns) {
-      const found = c.tasks.find((t) => t.id === selectedTaskId);
-      if (found) return found;
+      for (const t of c.tasks) {
+        if (t.id === selectedTaskId) return t;
+        const child = t.children.find((ch) => ch.id === selectedTaskId);
+        if (child) return child;
+      }
     }
     return null;
   }, [columns, selectedTaskId]);
+
+  // Prefer a "nest" drop target under the pointer; fall back to sortable/columns.
+  const collisionDetection: CollisionDetection = React.useCallback((args) => {
+    const pointerHits = pointerWithin(args);
+    const nestHit = pointerHits.find((h) => String(h.id).startsWith("nest:"));
+    if (nestHit) return [nestHit];
+    return closestCorners(args);
+  }, []);
+
+  const handleComplete = (task: BoardTask | BoardChildTask) => {
+    setColumns((prev) =>
+      prev.map((c) => ({
+        ...c,
+        tasks: c.tasks
+          .filter((t) => t.id !== task.id)
+          .map((t) => ({
+            ...t,
+            children: t.children.filter((ch) => ch.id !== task.id),
+          })),
+      }))
+    );
+    completeTask(task.id).then(() => router.refresh());
+    const entry = pushUndo({
+      label: `complete "${task.title}"`,
+      undo: () => uncompleteTask(task.id).then(() => router.refresh()),
+      redo: () => completeTask(task.id).then(() => router.refresh()),
+    });
+    toast(`Completed "${task.title}" 🎉`, {
+      action: { label: "Undo", onClick: () => undoSpecific(entry) },
+    });
+  };
+
+  const handleUnnest = (child: BoardChildTask) => {
+    const parentId = child.parentId;
+    unnestTask(child.id).then(() => router.refresh());
+    pushUndo({
+      label: `un-nest "${child.title}"`,
+      undo: () =>
+        parentId
+          ? nestTask(child.id, parentId).then(() => router.refresh())
+          : router.refresh(),
+      redo: () => unnestTask(child.id).then(() => router.refresh()),
+    });
+  };
+
+  const dragOrigin = React.useRef<{
+    taskId: string;
+    columnId: string;
+    order: number;
+  } | null>(null);
+
+  function handleDragStart(event: DragStartEvent) {
+    if (event.active.data.current?.type !== "task") return;
+    const taskId = String(event.active.id);
+    setDragActiveTaskId(taskId);
+    for (const c of columns) {
+      const t = c.tasks.find((t) => t.id === taskId);
+      if (t) {
+        dragOrigin.current = { taskId, columnId: c.id, order: t.order };
+        return;
+      }
+    }
+  }
+
+  function handleDragCancel() {
+    setDragActiveTaskId(null);
+    dragOrigin.current = null;
+  }
 
   function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
@@ -130,6 +217,24 @@ export function KanbanBoard({
       return;
     }
 
+    setDragActiveTaskId(null);
+
+    // Dropped onto another card's center band → nest as a sub-task.
+    if (over.data.current?.type === "nest") {
+      const childId = String(active.id);
+      const parentId = String(over.data.current.taskId);
+      dragOrigin.current = null;
+      if (childId !== parentId) {
+        nestTask(childId, parentId).then(() => router.refresh());
+        pushUndo({
+          label: "nest task",
+          undo: () => unnestTask(childId).then(() => router.refresh()),
+          redo: () => nestTask(childId, parentId).then(() => router.refresh()),
+        });
+      }
+      return;
+    }
+
     const activeId = String(active.id);
     const destCol = columns.find((c) => c.tasks.some((t) => t.id === activeId));
     if (!destCol) return;
@@ -143,6 +248,20 @@ export function KanbanBoard({
     else newOrder = (before.order + after.order) / 2;
 
     moveTask(activeId, destCol.id, newOrder).then(() => router.refresh());
+
+    const origin = dragOrigin.current;
+    dragOrigin.current = null;
+    if (origin && origin.taskId === activeId &&
+        (origin.columnId !== destCol.id || origin.order !== newOrder)) {
+      const movedTitle = destCol.tasks[index]?.title ?? "task";
+      pushUndo({
+        label: `move "${movedTitle}"`,
+        undo: () =>
+          moveTask(activeId, origin.columnId, origin.order).then(() => router.refresh()),
+        redo: () =>
+          moveTask(activeId, destCol.id, newOrder).then(() => router.refresh()),
+      });
+    }
   }
 
   return (
@@ -161,9 +280,11 @@ export function KanbanBoard({
       <DndContext
         id="board-dnd"
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetection}
+        onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div className="flex flex-1 gap-4 overflow-x-auto px-6 py-4">
           <SortableContext
@@ -176,9 +297,19 @@ export function KanbanBoard({
                 column={column}
                 tasks={column.tasks}
                 disableTaskDrag={sortByDueDate}
+                dragActiveTaskId={dragActiveTaskId}
                 onOpenTask={(task) => setSelectedTaskId(task.id)}
+                onCompleteTask={handleComplete}
+                onUnnestTask={handleUnnest}
                 onQuickAdd={(title) =>
-                  quickCreateTask(title, column.id).then(() => router.refresh())
+                  quickCreateTask(title, column.id).then((created) => {
+                    router.refresh();
+                    pushUndo({
+                      label: `create "${created.title}"`,
+                      undo: () => archiveTask(created.id).then(() => router.refresh()),
+                      redo: () => restoreTask(created.id).then(() => router.refresh()),
+                    });
+                  })
                 }
                 onRename={(name) => renameColumn(column.id, name).then(() => router.refresh())}
                 onDelete={() => deleteColumn(column.id).then(() => router.refresh())}

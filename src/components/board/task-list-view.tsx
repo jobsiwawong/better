@@ -15,14 +15,19 @@ import {
   deleteSavedView,
   type TaskFilters,
 } from "@/app/actions/saved-views";
-import type { BoardData, BoardColumn, BoardTask } from "@/lib/queries/board";
+import type { BoardData, BoardColumn } from "@/lib/queries/board";
+import { useTaskUrlParam } from "@/lib/use-task-url-param";
 
 type SortField = "title" | "owner" | "priority" | "dueDate" | "status";
 type SortDir = "asc" | "desc";
 
 const PRIORITY_RANK: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 
-function isOverdue(task: BoardTask) {
+function isDoneColumn(name: string) {
+  return /\b(done|complete|completed|shipped)\b/i.test(name);
+}
+
+function isOverdue(task: { dueDate: Date | string | null }) {
   if (!task.dueDate) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -46,7 +51,7 @@ export function TaskListView({
   const [filters, setFilters] = React.useState<TaskFilters>(EMPTY_FILTERS);
   const [sortField, setSortField] = React.useState<SortField>("dueDate");
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
-  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useTaskUrlParam();
 
   const columnById = React.useMemo(
     () => new Map(columns.map((c) => [c.id, c])),
@@ -54,7 +59,7 @@ export function TaskListView({
   );
 
   const allTasks = React.useMemo(
-    () => columns.flatMap((c) => c.tasks),
+    () => columns.flatMap((c) => c.tasks.flatMap((t) => [t, ...t.children])),
     [columns]
   );
 
@@ -167,6 +172,11 @@ export function TaskListView({
                   className="cursor-pointer rounded-2xl bg-card shadow-sm transition-shadow hover:shadow-md"
                 >
                   <td className="rounded-l-2xl px-3 py-3 font-medium text-card-foreground">
+                    {task.parentId && (
+                      <span className="mr-1 text-muted-foreground" title="Sub-task">
+                        ↳
+                      </span>
+                    )}
                     {task.title}
                   </td>
                   <td className="px-3 py-3 text-muted-foreground">
@@ -204,8 +214,22 @@ export function TaskListView({
                         })
                       : "—"}
                   </td>
-                  <td className="rounded-r-2xl px-3 py-3 text-muted-foreground">
-                    {columnById.get(task.columnId)?.name}
+                  <td className="rounded-r-2xl px-3 py-3">
+                    {(() => {
+                      const name = columnById.get(task.columnId)?.name ?? "";
+                      return (
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+                            isDoneColumn(name)
+                              ? "bg-[#7a9e7e]/20 text-[#4f7a54]"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {name}
+                        </span>
+                      );
+                    })()}
                   </td>
                 </tr>
               );

@@ -21,6 +21,8 @@ import {
 } from "@/app/actions/notes";
 import { createTag } from "@/app/actions/tags";
 import type { NotesData, NoteWithRelations } from "@/lib/queries/notes";
+import { pushUndo, undoSpecific } from "@/lib/undo-store";
+import { openManageLabels } from "@/components/app-shell/manage-labels-dialog";
 
 export function NoteEditor({
   note,
@@ -96,10 +98,15 @@ export function NoteEditor({
               const title = note.title;
               archiveNote(note.id).then(() => {
                 onDeleted();
+                const entry = pushUndo({
+                  label: `delete "${title}"`,
+                  undo: () => restoreNote(note.id).then(() => router.refresh()),
+                  redo: () => archiveNote(note.id).then(() => router.refresh()),
+                });
                 toast(`Deleted "${title}"`, {
                   action: {
                     label: "Undo",
-                    onClick: () => restoreNote(note.id).then(() => router.refresh()),
+                    onClick: () => undoSpecific(entry),
                   },
                 });
               });
@@ -133,17 +140,31 @@ export function NoteEditor({
           items={tagList.map((t) => ({ id: t.id, label: t.name, color: t.color }))}
           selectedIds={tagIds}
           onToggle={(id) => {
+            const prev = tagIds;
             const next = tagIds.includes(id)
               ? tagIds.filter((x) => x !== id)
               : [...tagIds, id];
             setTagIds(next);
             updateNote(note.id, { tagIds: next }).then(refresh);
+            pushUndo({
+              label: "note tags",
+              undo: () => {
+                setTagIds(prev);
+                return updateNote(note.id, { tagIds: prev }).then(refresh);
+              },
+              redo: () => {
+                setTagIds(next);
+                return updateNote(note.id, { tagIds: next }).then(refresh);
+              },
+            });
           }}
           onCreate={async (name) => {
             const created = await createTag(name);
             setTagList((prev) => [...prev, created]);
             return created;
           }}
+          onManage={() => openManageLabels("tags")}
+          manageLabel="Edit tags…"
         />
       </div>
 

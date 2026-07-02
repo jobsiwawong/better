@@ -15,7 +15,7 @@ export async function getTodayBadgeCount() {
   const now = new Date();
   const todayEnd = endOfDay(now);
   const count = await db.task.count({
-    where: { archived: false, dueDate: { lte: todayEnd, not: null } },
+    where: { archived: false, completed: false, dueDate: { lte: todayEnd, not: null } },
   });
   return count;
 }
@@ -36,19 +36,19 @@ export async function getWeeklyDigest() {
     db.task.findMany({
       where: {
         archived: false,
-        updatedAt: { gte: weekAgo },
-        column: { name: "Done" },
+        completed: true,
+        completedAt: { gte: weekAgo },
       },
       include,
-      orderBy: { updatedAt: "desc" },
+      orderBy: { completedAt: "desc" },
     }),
     db.task.findMany({
-      where: { archived: false, dueDate: { lt: todayStart } },
+      where: { archived: false, completed: false, dueDate: { lt: todayStart } },
       include,
       orderBy: { dueDate: "asc" },
     }),
     db.task.findMany({
-      where: { archived: false, dueDate: { gte: todayStart, lte: weekEnd } },
+      where: { archived: false, completed: false, dueDate: { gte: todayStart, lte: weekEnd } },
       include,
       orderBy: { dueDate: "asc" },
     }),

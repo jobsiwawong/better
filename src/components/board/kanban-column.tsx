@@ -15,24 +15,30 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TaskCard } from "@/components/board/task-card";
-import type { BoardColumn, BoardTask } from "@/lib/queries/board";
+import type { BoardColumn, BoardChildTask, BoardTask } from "@/lib/queries/board";
 
 export function KanbanColumn({
   column,
   tasks,
   onOpenTask,
+  onCompleteTask,
+  onUnnestTask,
   onQuickAdd,
   onRename,
   onDelete,
   disableTaskDrag,
+  dragActiveTaskId,
 }: {
   column: BoardColumn;
   tasks: BoardTask[];
-  onOpenTask: (task: BoardTask) => void;
+  onOpenTask: (task: BoardTask | BoardChildTask) => void;
+  onCompleteTask: (task: BoardTask | BoardChildTask) => void;
+  onUnnestTask: (task: BoardChildTask) => void;
   onQuickAdd: (title: string) => void;
   onRename: (name: string) => void;
   onDelete: () => void;
   disableTaskDrag?: boolean;
+  dragActiveTaskId?: string | null;
 }) {
   const [editingName, setEditingName] = React.useState(false);
   const [name, setName] = React.useState(column.name);
@@ -133,8 +139,11 @@ export function KanbanColumn({
             <TaskCard
               key={task.id}
               task={task}
-              onOpen={() => onOpenTask(task)}
+              onOpenTask={onOpenTask}
+              onCompleteTask={onCompleteTask}
+              onUnnestTask={onUnnestTask}
               disableDrag={disableTaskDrag}
+              nestActive={!!dragActiveTaskId && dragActiveTaskId !== task.id}
             />
           ))}
         </SortableContext>

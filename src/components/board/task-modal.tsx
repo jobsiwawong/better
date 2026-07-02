@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, X } from "lucide-react";
+import { Check, CornerLeftUp, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -31,17 +31,25 @@ import {
   addAttachment,
   addSubtask,
   archiveTask,
+  completeTask,
   deleteSubtask,
   linkNoteToTask,
   moveTask,
+  nestTask,
   removeAttachment,
   restoreTask,
   toggleSubtask,
+  uncompleteTask,
   unlinkNoteFromTask,
+  unnestTask,
   updateTask,
 } from "@/app/actions/tasks";
 import { createTag } from "@/app/actions/tags";
 import { createOwner } from "@/app/actions/owners";
+import { pushUndo, undoSpecific } from "@/lib/undo-store";
+import { fireConfetti } from "@/lib/confetti";
+import { openManageLabels } from "@/components/app-shell/manage-labels-dialog";
+import type { BoardChildTask } from "@/lib/queries/board";
 
 interface TagLite {
   id: string;
@@ -72,7 +80,7 @@ export function TaskModal({
   open,
   onOpenChange,
 }: {
-  task: BoardTask;
+  task: BoardTask | BoardChildTask;
   columns: BoardColumn[];
   allTags: TagLite[];
   allOwners: OwnerLite[];
@@ -101,14 +109,40 @@ export function TaskModal({
 
   const refresh = () => router.refresh();
 
-  const commitTitle = () => {
-    if (title.trim() && title.trim() !== task.title) {
-      updateTask(task.id, { title }).then(refresh);
-    }
-  };
-
   const commitField = (patch: Parameters<typeof updateTask>[1]) => {
     updateTask(task.id, patch).then(refresh);
+  };
+
+  // Commit a field change and register it on the global ⌘Z stack.
+  function undoableField<T>(
+    label: string,
+    prev: T,
+    next: T,
+    setLocal: (v: T) => void,
+    toPatch: (v: T) => Parameters<typeof updateTask>[1]
+  ) {
+    setLocal(next);
+    updateTask(task.id, toPatch(next)).then(refresh);
+    pushUndo({
+      label,
+      undo: () => {
+        setLocal(prev);
+        return updateTask(task.id, toPatch(prev)).then(refresh);
+      },
+      redo: () => {
+        setLocal(next);
+        return updateTask(task.id, toPatch(next)).then(refresh);
+      },
+    });
+  }
+
+  const commitTitle = () => {
+    const next = title.trim();
+    if (next && next !== task.title) {
+      undoableField(`title of "${task.title}"`, task.title, next, setTitle, (v) => ({
+        title: v,
+      }));
+    }
   };
 
   return (
@@ -139,10 +173,11 @@ export function TaskModal({
             <Input
               type="date"
               value={dueDate}
-              onChange={(e) => {
-                setDueDate(e.target.value);
-                commitField({ dueDate: e.target.value || null });
-              }}
+              onChange={(e) =>
+                undoableField("due date", dueDate, e.target.value, setDueDate, (v) => ({
+                  dueDate: v || null,
+                }))
+              }
               className="h-9"
             />
           </div>
@@ -151,10 +186,11 @@ export function TaskModal({
             <Input
               type="time"
               value={dueTime}
-              onChange={(e) => {
-                setDueTime(e.target.value);
-                commitField({ dueTime: e.target.value || null });
-              }}
+              onChange={(e) =>
+                undoableField("due time", dueTime, e.target.value, setDueTime, (v) => ({
+                  dueTime: v || null,
+                }))
+              }
               className="h-9"
             />
           </div>
@@ -162,10 +198,11 @@ export function TaskModal({
             <Label className="text-xs text-muted-foreground">Priority</Label>
             <Select
               value={priority}
-              onValueChange={(v: typeof priority) => {
-                setPriority(v);
-                commitField({ priority: v });
-              }}
+              onValueChange={(v: typeof priority) =>
+                undoableField("priority", priority, v, setPriority, (p) => ({
+                  priority: p,
+                }))
+              }
             >
               <SelectTrigger className="h-9 w-full">
                 <SelectValue />
@@ -182,8 +219,21 @@ export function TaskModal({
             <Select
               value={columnId}
               onValueChange={(v) => {
+                const prevCol = columnId;
+                const prevOrder = task.order;
                 setColumnId(v);
                 moveTask(task.id, v, 0).then(refresh);
+                pushUndo({
+                  label: "status change",
+                  undo: () => {
+                    setColumnId(prevCol);
+                    return moveTask(task.id, prevCol, prevOrder).then(refresh);
+                  },
+                  redo: () => {
+                    setColumnId(v);
+                    return moveTask(task.id, v, 0).then(refresh);
+                  },
+                });
               }}
             >
               <SelectTrigger className="h-9 w-full">
@@ -205,10 +255,11 @@ export function TaskModal({
             <Label className="text-xs text-muted-foreground">Recurrence</Label>
             <Select
               value={recurrenceType}
-              onValueChange={(v: typeof recurrenceType) => {
-                setRecurrenceType(v);
-                commitField({ recurrenceType: v });
-              }}
+              onValueChange={(v: typeof recurrenceType) =>
+                undoableField("recurrence", recurrenceType, v, setRecurrenceType, (r) => ({
+                  recurrenceType: r,
+                }))
+              }
             >
               <SelectTrigger className="h-9 w-full">
                 <SelectValue />
@@ -249,11 +300,15 @@ export function TaskModal({
                 <SelectedPill
                   key={id}
                   label={owner.name}
-                  onRemove={() => {
-                    const next = ownerIds.filter((x) => x !== id);
-                    setOwnerIds(next);
-                    commitField({ ownerIds: next });
-                  }}
+                  onRemove={() =>
+                    undoableField(
+                      "owners",
+                      ownerIds,
+                      ownerIds.filter((x) => x !== id),
+                      setOwnerIds,
+                      (v) => ({ ownerIds: v })
+                    )
+                  }
                 />
               );
             })}
@@ -261,18 +316,24 @@ export function TaskModal({
               triggerLabel="Owner"
               items={owners.map((o) => ({ id: o.id, label: o.name }))}
               selectedIds={ownerIds}
-              onToggle={(id) => {
-                const next = ownerIds.includes(id)
-                  ? ownerIds.filter((x) => x !== id)
-                  : [...ownerIds, id];
-                setOwnerIds(next);
-                commitField({ ownerIds: next });
-              }}
+              onToggle={(id) =>
+                undoableField(
+                  "owners",
+                  ownerIds,
+                  ownerIds.includes(id)
+                    ? ownerIds.filter((x) => x !== id)
+                    : [...ownerIds, id],
+                  setOwnerIds,
+                  (v) => ({ ownerIds: v })
+                )
+              }
               onCreate={async (name) => {
                 const created = await createOwner(name);
                 setOwners((prev) => [...prev, created]);
                 return created;
               }}
+              onManage={() => openManageLabels("people")}
+              manageLabel="Edit people…"
             />
           </div>
         </div>
@@ -288,11 +349,15 @@ export function TaskModal({
                   key={id}
                   label={tag.name}
                   color={tag.color}
-                  onRemove={() => {
-                    const next = tagIds.filter((x) => x !== id);
-                    setTagIds(next);
-                    commitField({ tagIds: next });
-                  }}
+                  onRemove={() =>
+                    undoableField(
+                      "tags",
+                      tagIds,
+                      tagIds.filter((x) => x !== id),
+                      setTagIds,
+                      (v) => ({ tagIds: v })
+                    )
+                  }
                 />
               );
             })}
@@ -300,18 +365,24 @@ export function TaskModal({
               triggerLabel="Tag"
               items={tags.map((t) => ({ id: t.id, label: t.name, color: t.color }))}
               selectedIds={tagIds}
-              onToggle={(id) => {
-                const next = tagIds.includes(id)
-                  ? tagIds.filter((x) => x !== id)
-                  : [...tagIds, id];
-                setTagIds(next);
-                commitField({ tagIds: next });
-              }}
+              onToggle={(id) =>
+                undoableField(
+                  "tags",
+                  tagIds,
+                  tagIds.includes(id)
+                    ? tagIds.filter((x) => x !== id)
+                    : [...tagIds, id],
+                  setTagIds,
+                  (v) => ({ tagIds: v })
+                )
+              }
               onCreate={async (name) => {
                 const created = await createTag(name);
                 setTags((prev) => [...prev, created]);
                 return created;
               }}
+              onManage={() => openManageLabels("tags")}
+              manageLabel="Edit tags…"
             />
           </div>
         </div>
@@ -333,7 +404,24 @@ export function TaskModal({
                   {s.title}
                 </span>
                 <button
-                  onClick={() => deleteSubtask(s.id).then(refresh)}
+                  onClick={() => {
+                    deleteSubtask(s.id).then(refresh);
+                    // Undo recreates the subtask, so track the fresh id for redo.
+                    const ref = { id: s.id };
+                    pushUndo({
+                      label: `delete subtask "${s.title}"`,
+                      undo: async () => {
+                        const created = await addSubtask(task.id, s.title);
+                        if (s.completed) await toggleSubtask(created.id);
+                        ref.id = created.id;
+                        refresh();
+                      },
+                      redo: async () => {
+                        await deleteSubtask(ref.id);
+                        refresh();
+                      },
+                    });
+                  }}
                   className="text-muted-foreground hover:text-destructive"
                   aria-label="Delete subtask"
                 >
@@ -386,7 +474,22 @@ export function TaskModal({
                   {a.label}
                 </a>
                 <button
-                  onClick={() => removeAttachment(a.id).then(refresh)}
+                  onClick={() => {
+                    removeAttachment(a.id).then(refresh);
+                    const ref = { id: a.id };
+                    pushUndo({
+                      label: `remove attachment "${a.label}"`,
+                      undo: async () => {
+                        const created = await addAttachment(task.id, a.label, a.url);
+                        ref.id = created.id;
+                        refresh();
+                      },
+                      redo: async () => {
+                        await removeAttachment(ref.id);
+                        refresh();
+                      },
+                    });
+                  }}
                   className="text-muted-foreground hover:text-destructive"
                   aria-label="Remove attachment"
                 >
@@ -467,7 +570,50 @@ export function TaskModal({
           </div>
         </div>
 
-        <div className="flex justify-end border-t border-border pt-4">
+        <div className="flex items-center justify-between border-t border-border pt-4">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              className="gap-1.5 text-primary hover:text-primary"
+              onClick={(e) => {
+                const title = task.title;
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                fireConfetti(rect.left + rect.width / 2, rect.top);
+                completeTask(task.id).then(() => {
+                  onOpenChange(false);
+                  refresh();
+                  const entry = pushUndo({
+                    label: `complete "${title}"`,
+                    undo: () => uncompleteTask(task.id).then(refresh),
+                    redo: () => completeTask(task.id).then(refresh),
+                  });
+                  toast(`Completed "${title}" 🎉`, {
+                    action: { label: "Undo", onClick: () => undoSpecific(entry) },
+                  });
+                });
+              }}
+            >
+              <Check className="size-3.5" /> Mark complete
+            </Button>
+            {"parentId" in task && task.parentId && (
+              <Button
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground"
+                onClick={() => {
+                  const parentId = task.parentId as string;
+                  unnestTask(task.id).then(refresh);
+                  onOpenChange(false);
+                  pushUndo({
+                    label: `un-nest "${task.title}"`,
+                    undo: () => nestTask(task.id, parentId).then(refresh),
+                    redo: () => unnestTask(task.id).then(refresh),
+                  });
+                }}
+              >
+                <CornerLeftUp className="size-3.5" /> Un-nest
+              </Button>
+            )}
+          </div>
           <Button
             variant="ghost"
             className="gap-1.5 text-destructive hover:text-destructive"
@@ -476,10 +622,15 @@ export function TaskModal({
               archiveTask(task.id).then(() => {
                 onOpenChange(false);
                 refresh();
+                const entry = pushUndo({
+                  label: `delete "${title}"`,
+                  undo: () => restoreTask(task.id).then(refresh),
+                  redo: () => archiveTask(task.id).then(refresh),
+                });
                 toast(`Deleted "${title}"`, {
                   action: {
                     label: "Undo",
-                    onClick: () => restoreTask(task.id).then(refresh),
+                    onClick: () => undoSpecific(entry),
                   },
                 });
               });

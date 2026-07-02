@@ -19,11 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelectPopover, SelectedPill } from "@/components/board/multi-select-popover";
-import { createTask } from "@/app/actions/tasks";
-import { createNote, updateNote } from "@/app/actions/notes";
+import { archiveTask, createTask, restoreTask } from "@/app/actions/tasks";
+import { archiveNote, createNote, restoreNote, updateNote } from "@/app/actions/notes";
 import { createTag } from "@/app/actions/tags";
 import { createOwner } from "@/app/actions/owners";
 import { getQuickAddOptions } from "@/app/actions/quick-add";
+import { pushUndo } from "@/lib/undo-store";
+import { openManageLabels } from "@/components/app-shell/manage-labels-dialog";
 import { cn } from "@/lib/utils";
 
 interface Option {
@@ -88,7 +90,7 @@ export function QuickAdd() {
   const submit = async () => {
     if (!title.trim()) return;
     if (mode === "task") {
-      await createTask({
+      const created = await createTask({
         title,
         columnId,
         dueDate: dueDate || null,
@@ -97,10 +99,20 @@ export function QuickAdd() {
         ownerIds,
       });
       router.refresh();
+      pushUndo({
+        label: `create "${created.title}"`,
+        undo: () => archiveTask(created.id).then(() => router.refresh()),
+        redo: () => restoreTask(created.id).then(() => router.refresh()),
+      });
     } else {
       const note = await createNote({});
       await updateNote(note.id, { title });
       router.push(`/notes/${note.id}`);
+      pushUndo({
+        label: `create note "${title}"`,
+        undo: () => archiveNote(note.id).then(() => router.refresh()),
+        redo: () => restoreNote(note.id).then(() => router.refresh()),
+      });
     }
     handleOpenChange(false);
   };
@@ -202,6 +214,8 @@ export function QuickAdd() {
                   setOwners((prev) => [...prev, created]);
                   return created;
                 }}
+                onManage={() => openManageLabels("people")}
+                manageLabel="Edit people…"
               />
               {tagIds.map((id) => {
                 const tag = tags.find((t) => t.id === id);
@@ -229,6 +243,8 @@ export function QuickAdd() {
                   setTags((prev) => [...prev, created]);
                   return created;
                 }}
+                onManage={() => openManageLabels("tags")}
+                manageLabel="Edit tags…"
               />
             </div>
           </div>

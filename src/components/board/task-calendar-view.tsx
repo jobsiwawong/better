@@ -1,11 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TaskModal } from "@/components/board/task-modal";
-import type { BoardData, BoardColumn, BoardTask } from "@/lib/queries/board";
+import type { BoardData, BoardColumn, BoardChildTask, BoardTask } from "@/lib/queries/board";
+import { createTask } from "@/app/actions/tasks";
+import { pushUndo } from "@/lib/undo-store";
+import { archiveTask, restoreTask } from "@/app/actions/tasks";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -28,14 +32,44 @@ export function TaskCalendarView({
   owners: BoardData["owners"];
   notes: BoardData["notes"];
 }) {
+  const router = useRouter();
   const [cursor, setCursor] = React.useState(() => new Date());
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+  const [addingDay, setAddingDay] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState("");
 
-  const allTasks = React.useMemo(() => columns.flatMap((c) => c.tasks), [columns]);
-  const selectedTask = React.useMemo(
+  const allTasks = React.useMemo(
+    () => columns.flatMap((c) => c.tasks.flatMap((t) => [t, ...t.children])),
+    [columns]
+  );
+  const selectedTask: BoardTask | BoardChildTask | null = React.useMemo(
     () => allTasks.find((t) => t.id === selectedTaskId) ?? null,
     [allTasks, selectedTaskId]
   );
+
+  const addTaskOnDay = async (day: Date) => {
+    const title = draft.trim();
+    const columnId = columns[0]?.id;
+    if (!title || !columnId) {
+      setAddingDay(null);
+      setDraft("");
+      return;
+    }
+    const y = day.getFullYear();
+    const m = String(day.getMonth() + 1).padStart(2, "0");
+    const d = String(day.getDate()).padStart(2, "0");
+    // Noon-local avoids the task landing on the previous day in negative tz.
+    const dueDate = `${y}-${m}-${d}T12:00:00`;
+    setDraft("");
+    setAddingDay(null);
+    const created = await createTask({ title, columnId, dueDate });
+    router.refresh();
+    pushUndo({
+      label: `create "${created.title}"`,
+      undo: () => archiveTask(created.id).then(() => router.refresh()),
+      redo: () => restoreTask(created.id).then(() => router.refresh()),
+    });
+  };
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -56,7 +90,7 @@ export function TaskCalendarView({
   }, [year, month]);
 
   const tasksByDay = React.useMemo(() => {
-    const map = new Map<string, BoardTask[]>();
+    const map = new Map<string, (BoardTask | BoardChildTask)[]>();
     for (const task of allTasks) {
       if (!task.dueDate) continue;
       const key = new Date(task.dueDate).toDateString();
@@ -114,23 +148,55 @@ export function TaskCalendarView({
           const inMonth = day.getMonth() === month;
           const dayTasks = tasksByDay.get(day.toDateString()) ?? [];
           const isToday = sameDay(day, today);
+          const dayKey = day.toDateString();
+          const isAdding = addingDay === dayKey;
           return (
             <div
               key={day.toISOString()}
               className={cn(
-                "min-h-28 space-y-1 bg-background p-1.5",
+                "group/day min-h-28 space-y-1 bg-background p-1.5",
                 !inMonth && "opacity-40"
               )}
             >
-              <span
-                className={cn(
-                  "inline-flex size-5 items-center justify-center rounded-full text-xs",
-                  isToday && "bg-primary font-semibold text-primary-foreground"
-                )}
-              >
-                {day.getDate()}
-              </span>
+              <div className="flex items-center justify-between">
+                <span
+                  className={cn(
+                    "inline-flex size-5 items-center justify-center rounded-full text-xs",
+                    isToday && "bg-primary font-semibold text-primary-foreground"
+                  )}
+                >
+                  {day.getDate()}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Add task on ${day.toLocaleDateString()}`}
+                  onClick={() => {
+                    setDraft("");
+                    setAddingDay(dayKey);
+                  }}
+                  className="rounded-md p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus:opacity-100 group-hover/day:opacity-100"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
               <div className="space-y-1">
+                {isAdding && (
+                  <input
+                    autoFocus
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => addTaskOnDay(day)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addTaskOnDay(day);
+                      if (e.key === "Escape") {
+                        setDraft("");
+                        setAddingDay(null);
+                      }
+                    }}
+                    placeholder="Task title…"
+                    className="w-full rounded-lg border border-border bg-card px-1.5 py-0.5 text-xs outline-none focus:border-primary"
+                  />
+                )}
                 {dayTasks.slice(0, 3).map((task) => (
                   <button
                     key={task.id}
