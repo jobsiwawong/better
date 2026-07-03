@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TaskModal } from "@/components/board/task-modal";
 import {
@@ -214,15 +214,17 @@ export function TaskListView({
                   <td className="rounded-r-2xl px-3 py-3">
                     {(() => {
                       const name = columnById.get(task.columnId)?.name ?? "";
+                      const done = isDoneColumnName(name);
                       return (
                         <span
                           className={cn(
-                            "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                            isDoneColumnName(name)
-                              ? "bg-[#7a9e7e]/20 text-[#4f7a54]"
-                              : "bg-muted text-muted-foreground"
+                            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            done
+                              ? "bg-[#3f8f5c] text-white shadow-sm"
+                              : "bg-muted font-medium text-muted-foreground"
                           )}
                         >
+                          {done && <Check className="size-3" strokeWidth={3} />}
                           {name}
                         </span>
                       );

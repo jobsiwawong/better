@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { quoteForNow } from "@/lib/quotes";
+import { Mascot } from "@/components/today/mascot";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -17,7 +19,7 @@ export default async function TodayPage() {
   const todayEnd = endOfDay(now);
   const weekEnd = endOfDay(new Date(now.getTime() + 7 * 86400000));
 
-  const [overdue, dueToday, upcoming] = await Promise.all([
+  const [overdue, dueToday, upcoming, settings] = await Promise.all([
     db.task.findMany({
       where: { archived: false, completed: false, dueDate: { lt: todayStart } },
       include: { tags: { include: { tag: true } }, owners: { include: { owner: true } } },
@@ -33,17 +35,27 @@ export default async function TodayPage() {
       include: { tags: { include: { tag: true } }, owners: { include: { owner: true } } },
       orderBy: { dueDate: "asc" },
     }),
+    db.settings.findUnique({ where: { id: "singleton" }, select: { name: true } }),
   ]);
+
+  const name = settings?.name?.trim();
+  const quote = quoteForNow(now);
 
   return (
     <div className="mx-auto max-w-4xl space-y-10 px-8 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">
-          Good {greeting()}.
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Here&apos;s what needs your attention this week.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Good {greeting()}{name ? `, ${name}` : ""}.
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Here&apos;s what needs your attention this week.
+          </p>
+          <p className="mt-4 max-w-md border-l-2 border-primary/40 pl-3 text-sm italic text-muted-foreground">
+            &ldquo;{quote}&rdquo;
+          </p>
+        </div>
+        <Mascot className="hidden shrink-0 sm:block" />
       </div>
 
       <TaskGroup

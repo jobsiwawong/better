@@ -24,6 +24,7 @@ export function KanbanColumn({
   onCompleteTask,
   onUncompleteTask,
   onUnnestTask,
+  onToggleSubtask,
   onQuickAdd,
   onRename,
   onDelete,
@@ -36,6 +37,7 @@ export function KanbanColumn({
   onCompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUncompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUnnestTask: (task: BoardChildTask) => void;
+  onToggleSubtask: (subtaskId: string) => void;
   onQuickAdd: (title: string) => void;
   onRename: (name: string) => void;
   onDelete: () => void;
@@ -145,6 +147,7 @@ export function KanbanColumn({
               onCompleteTask={onCompleteTask}
               onUncompleteTask={onUncompleteTask}
               onUnnestTask={onUnnestTask}
+              onToggleSubtask={onToggleSubtask}
               disableDrag={disableTaskDrag}
               nestActive={!!dragActiveTaskId && dragActiveTaskId !== task.id}
             />

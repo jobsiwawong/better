@@ -8,8 +8,9 @@ datasource db {
 }
 
 model Settings {
-  id           String @id @default("singleton")
+  id           String  @id @default("singleton")
   passcodeHash String
+  name         String?
 }
 
 enum Priority {

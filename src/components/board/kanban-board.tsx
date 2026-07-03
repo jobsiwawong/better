@@ -29,6 +29,7 @@ import {
   nestTask,
   quickCreateTask,
   restoreTask,
+  toggleSubtask,
   uncompleteTask,
   unnestTask,
 } from "@/app/actions/tasks";
@@ -126,6 +127,10 @@ export function KanbanBoard({
       undo: () => completeTask(task.id).then(() => router.refresh()),
       redo: () => uncompleteTask(task.id).then(() => router.refresh()),
     });
+  };
+
+  const handleToggleSubtask = (subtaskId: string) => {
+    toggleSubtask(subtaskId).then(() => router.refresh());
   };
 
   const handleUnnest = (child: BoardChildTask) => {
@@ -309,6 +314,7 @@ export function KanbanBoard({
                 onCompleteTask={handleComplete}
                 onUncompleteTask={handleUncomplete}
                 onUnnestTask={handleUnnest}
+                onToggleSubtask={handleToggleSubtask}
                 onQuickAdd={(title) =>
                   quickCreateTask(title, column.id).then((created) => {
                     router.refresh();

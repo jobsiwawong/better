@@ -4,7 +4,7 @@ import * as React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, CheckSquare, CornerLeftUp, Link2, NotebookText } from "lucide-react";
+import { Check, CornerLeftUp, Link2, NotebookText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fireConfetti } from "@/lib/confetti";
 import type { BoardTask, BoardChildTask } from "@/lib/queries/board";
@@ -128,12 +128,53 @@ function ChildRow({
   );
 }
 
+// A checklist sub-task row, styled to match the nested-task rows above.
+function SubtaskRow({
+  subtask,
+  onToggle,
+}: {
+  subtask: { id: string; title: string; completed: boolean };
+  onToggle: () => void;
+}) {
+  return (
+    <div className="group/sub flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs hover:bg-accent/50">
+      <button
+        type="button"
+        aria-label={
+          subtask.completed ? "Mark sub-task incomplete" : "Mark sub-task complete"
+        }
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+          subtask.completed
+            ? "border-[#4f7a54] bg-[#4f7a54] text-white"
+            : "border-muted-foreground/40 text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground"
+        )}
+      >
+        <Check className="size-2.5" strokeWidth={3.5} />
+      </button>
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate",
+          subtask.completed && "text-muted-foreground line-through"
+        )}
+      >
+        {subtask.title}
+      </span>
+    </div>
+  );
+}
+
 export function TaskCard({
   task,
   onOpenTask,
   onCompleteTask,
   onUncompleteTask,
   onUnnestTask,
+  onToggleSubtask,
   disableDrag,
   nestActive,
 }: {
@@ -142,6 +183,7 @@ export function TaskCard({
   onCompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUncompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUnnestTask: (task: BoardChildTask) => void;
+  onToggleSubtask: (subtaskId: string) => void;
   disableDrag?: boolean;
   /** True when a different task is being dragged and could nest here. */
   nestActive?: boolean;
@@ -160,7 +202,6 @@ export function TaskCard({
   });
 
   const overdue = isOverdue(task);
-  const completedSubtasks = task.subtasks.filter((s) => s.completed).length;
   const children = task.children ?? [];
 
   return (
@@ -230,12 +271,6 @@ export function TaskCard({
             })}
           </span>
         )}
-        {task.subtasks.length > 0 && (
-          <span className="inline-flex items-center gap-1">
-            <CheckSquare className="size-3" />
-            {completedSubtasks}/{task.subtasks.length}
-          </span>
-        )}
         {task.notes.length > 0 && (
           <span className="inline-flex items-center gap-1">
             <NotebookText className="size-3" />
@@ -250,7 +285,7 @@ export function TaskCard({
         )}
       </div>
 
-      {children.length > 0 && (
+      {(children.length > 0 || task.subtasks.length > 0) && (
         <div className="mt-2 space-y-0.5 border-l-2 border-border pl-2">
           {children.map((child) => (
             <ChildRow
@@ -260,6 +295,13 @@ export function TaskCard({
               onComplete={() => onCompleteTask(child)}
               onUncomplete={() => onUncompleteTask(child)}
               onUnnest={() => onUnnestTask(child)}
+            />
+          ))}
+          {task.subtasks.map((subtask) => (
+            <SubtaskRow
+              key={subtask.id}
+              subtask={subtask}
+              onToggle={() => onToggleSubtask(subtask.id)}
             />
           ))}
         </div>
