@@ -22,6 +22,7 @@ export function KanbanColumn({
   tasks,
   onOpenTask,
   onCompleteTask,
+  onUncompleteTask,
   onUnnestTask,
   onQuickAdd,
   onRename,
@@ -33,6 +34,7 @@ export function KanbanColumn({
   tasks: BoardTask[];
   onOpenTask: (task: BoardTask | BoardChildTask) => void;
   onCompleteTask: (task: BoardTask | BoardChildTask) => void;
+  onUncompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUnnestTask: (task: BoardChildTask) => void;
   onQuickAdd: (title: string) => void;
   onRename: (name: string) => void;
@@ -141,6 +143,7 @@ export function KanbanColumn({
               task={task}
               onOpenTask={onOpenTask}
               onCompleteTask={onCompleteTask}
+              onUncompleteTask={onUncompleteTask}
               onUnnestTask={onUnnestTask}
               disableDrag={disableTaskDrag}
               nestActive={!!dragActiveTaskId && dragActiveTaskId !== task.id}

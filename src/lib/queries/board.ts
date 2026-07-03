@@ -14,7 +14,7 @@ export function taskIncludeWithChildren() {
   return {
     ...taskInclude(),
     children: {
-      where: { archived: false, completed: false },
+      where: { archived: false },
       orderBy: { order: "asc" as const },
       include: taskInclude(),
     },
@@ -27,8 +27,9 @@ export async function getBoardData() {
       orderBy: { order: "asc" },
       include: {
         tasks: {
-          // Only top-level, active tasks; nested and completed tasks are hidden.
-          where: { archived: false, completed: false, parentId: null },
+          // Top-level tasks; completed ones stay visible (they live in the
+          // done column). Only nested and deleted tasks are excluded here.
+          where: { archived: false, parentId: null },
           orderBy: { order: "asc" },
           include: taskIncludeWithChildren(),
         },

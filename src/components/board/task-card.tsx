@@ -22,12 +22,17 @@ function isOverdue(task: { dueDate: Date | string | null }) {
   return new Date(task.dueDate) < today;
 }
 
-// A round check button; fires confetti from its own position on complete.
+// A round check toggle. Completing fires confetti from its own position;
+// clicking a completed one marks it active again (no confetti).
 function CompleteButton({
+  completed,
   onComplete,
+  onUncomplete,
   size = "md",
 }: {
+  completed: boolean;
   onComplete: () => void;
+  onUncomplete: () => void;
   size?: "md" | "sm";
 }) {
   const ref = React.useRef<HTMLButtonElement>(null);
@@ -35,15 +40,22 @@ function CompleteButton({
     <button
       ref={ref}
       type="button"
-      aria-label="Mark complete"
+      aria-label={completed ? "Mark incomplete" : "Mark complete"}
       onClick={(e) => {
         e.stopPropagation();
+        if (completed) {
+          onUncomplete();
+          return;
+        }
         const rect = ref.current?.getBoundingClientRect();
         if (rect) fireConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
         onComplete();
       }}
       className={cn(
-        "group/check flex shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/40 text-transparent transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground",
+        "flex shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+        completed
+          ? "border-[#4f7a54] bg-[#4f7a54] text-white"
+          : "border-muted-foreground/40 text-transparent hover:border-primary hover:bg-primary hover:text-primary-foreground",
         size === "md" ? "size-5" : "size-4"
       )}
     >
@@ -56,11 +68,13 @@ function ChildRow({
   child,
   onOpen,
   onComplete,
+  onUncomplete,
   onUnnest,
 }: {
   child: BoardChildTask;
   onOpen: () => void;
   onComplete: () => void;
+  onUncomplete: () => void;
   onUnnest: () => void;
 }) {
   return (
@@ -71,8 +85,20 @@ function ChildRow({
       }}
       className="group/child flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs hover:bg-accent/50"
     >
-      <CompleteButton size="sm" onComplete={onComplete} />
-      <span className="min-w-0 flex-1 truncate">{child.title}</span>
+      <CompleteButton
+        size="sm"
+        completed={child.completed}
+        onComplete={onComplete}
+        onUncomplete={onUncomplete}
+      />
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate",
+          child.completed && "text-muted-foreground line-through"
+        )}
+      >
+        {child.title}
+      </span>
       {child.dueDate && (
         <span
           className={cn(
@@ -106,6 +132,7 @@ export function TaskCard({
   task,
   onOpenTask,
   onCompleteTask,
+  onUncompleteTask,
   onUnnestTask,
   disableDrag,
   nestActive,
@@ -113,6 +140,7 @@ export function TaskCard({
   task: BoardTask;
   onOpenTask: (task: BoardTask | BoardChildTask) => void;
   onCompleteTask: (task: BoardTask | BoardChildTask) => void;
+  onUncompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUnnestTask: (task: BoardChildTask) => void;
   disableDrag?: boolean;
   /** True when a different task is being dragged and could nest here. */
@@ -148,7 +176,11 @@ export function TaskCard({
       )}
     >
       <div className="flex items-start gap-2">
-        <CompleteButton onComplete={() => onCompleteTask(task)} />
+        <CompleteButton
+          completed={task.completed}
+          onComplete={() => onCompleteTask(task)}
+          onUncomplete={() => onUncompleteTask(task)}
+        />
         <div className="flex min-w-0 flex-1 items-start gap-2">
           <span
             className={cn(
@@ -157,7 +189,14 @@ export function TaskCard({
             )}
             title={`${task.priority} priority`}
           />
-          <p className="min-w-0 flex-1 cursor-pointer text-sm font-medium leading-snug text-card-foreground">
+          <p
+            className={cn(
+              "min-w-0 flex-1 cursor-pointer text-sm font-medium leading-snug",
+              task.completed
+                ? "text-muted-foreground line-through"
+                : "text-card-foreground"
+            )}
+          >
             {task.title}
           </p>
         </div>
@@ -219,6 +258,7 @@ export function TaskCard({
               child={child}
               onOpen={() => onOpenTask(child)}
               onComplete={() => onCompleteTask(child)}
+              onUncomplete={() => onUncompleteTask(child)}
               onUnnest={() => onUnnestTask(child)}
             />
           ))}

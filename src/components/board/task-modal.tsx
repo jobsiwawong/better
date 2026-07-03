@@ -572,29 +572,50 @@ export function TaskModal({
 
         <div className="flex items-center justify-between border-t border-border pt-4">
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              className="gap-1.5 text-primary hover:text-primary"
-              onClick={(e) => {
-                const title = task.title;
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                fireConfetti(rect.left + rect.width / 2, rect.top);
-                completeTask(task.id).then(() => {
-                  onOpenChange(false);
-                  refresh();
-                  const entry = pushUndo({
-                    label: `complete "${title}"`,
-                    undo: () => uncompleteTask(task.id).then(refresh),
-                    redo: () => completeTask(task.id).then(refresh),
+            {task.completed ? (
+              <Button
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground"
+                onClick={() => {
+                  const title = task.title;
+                  uncompleteTask(task.id).then(() => {
+                    onOpenChange(false);
+                    refresh();
+                    pushUndo({
+                      label: `mark "${title}" incomplete`,
+                      undo: () => completeTask(task.id).then(refresh),
+                      redo: () => uncompleteTask(task.id).then(refresh),
+                    });
                   });
-                  toast(`Completed "${title}" 🎉`, {
-                    action: { label: "Undo", onClick: () => undoSpecific(entry) },
+                }}
+              >
+                <Check className="size-3.5" /> Mark incomplete
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                className="gap-1.5 text-primary hover:text-primary"
+                onClick={(e) => {
+                  const title = task.title;
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  fireConfetti(rect.left + rect.width / 2, rect.top);
+                  completeTask(task.id).then(() => {
+                    onOpenChange(false);
+                    refresh();
+                    const entry = pushUndo({
+                      label: `complete "${title}"`,
+                      undo: () => uncompleteTask(task.id).then(refresh),
+                      redo: () => completeTask(task.id).then(refresh),
+                    });
+                    toast(`Completed "${title}" 🎉`, {
+                      action: { label: "Undo", onClick: () => undoSpecific(entry) },
+                    });
                   });
-                });
-              }}
-            >
-              <Check className="size-3.5" /> Mark complete
-            </Button>
+                }}
+              >
+                <Check className="size-3.5" /> Mark complete
+              </Button>
+            )}
             {"parentId" in task && task.parentId && (
               <Button
                 variant="ghost"

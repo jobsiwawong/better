@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import type { Priority, RecurrenceType } from "@/generated/prisma/enums";
+import { isDoneColumnName } from "@/lib/done-column";
 
 export type TaskInput = {
   title: string;
@@ -124,8 +125,43 @@ export async function updateTask(id: string, patch: TaskUpdateInput) {
   return task;
 }
 
+async function findDoneColumn() {
+  const columns = await db.column.findMany({ orderBy: { order: "asc" } });
+  return columns.find((c) => isDoneColumnName(c.name)) ?? null;
+}
+
+async function topOrderOf(columnId: string) {
+  const min = await db.task.aggregate({
+    where: { columnId, archived: false },
+    _min: { order: true },
+  });
+  return (min._min.order ?? 0) - 1;
+}
+
 export async function moveTask(id: string, columnId: string, order: number) {
-  await db.task.update({ where: { id }, data: { columnId, order } });
+  const [task, doneCol] = await Promise.all([
+    db.task.findUniqueOrThrow({
+      where: { id },
+      select: { completed: true, parentId: true },
+    }),
+    findDoneColumn(),
+  ]);
+
+  const data: Record<string, unknown> = { columnId, order };
+  // Moving a top-level card into the done column completes it; moving it out
+  // marks it active again. completedAt is only stamped on the transition.
+  if (!task.parentId) {
+    const enteringDone = doneCol?.id === columnId;
+    if (enteringDone && !task.completed) {
+      data.completed = true;
+      data.completedAt = new Date();
+    } else if (!enteringDone && task.completed) {
+      data.completed = false;
+      data.completedAt = null;
+    }
+  }
+
+  await db.task.update({ where: { id }, data });
   revalidateBoardPages();
 }
 
@@ -146,18 +182,49 @@ export async function restoreTask(id: string) {
 }
 
 export async function completeTask(id: string) {
-  await db.task.update({
+  const task = await db.task.findUniqueOrThrow({
     where: { id },
-    data: { completed: true, completedAt: new Date() },
+    select: { parentId: true, columnId: true },
   });
+
+  const data: Record<string, unknown> = { completed: true, completedAt: new Date() };
+  // Top-level cards also move into the done column so they're visible there.
+  if (!task.parentId) {
+    const doneCol = await findDoneColumn();
+    if (doneCol && doneCol.id !== task.columnId) {
+      data.columnId = doneCol.id;
+      data.order = await topOrderOf(doneCol.id);
+    }
+  }
+
+  await db.task.update({ where: { id }, data });
   revalidateBoardPages();
 }
 
 export async function uncompleteTask(id: string) {
-  await db.task.update({
+  const task = await db.task.findUniqueOrThrow({
     where: { id },
-    data: { completed: false, completedAt: null },
+    select: { parentId: true, columnId: true },
   });
+
+  const data: Record<string, unknown> = { completed: false, completedAt: null };
+  // If a top-level card sits in the done column, send it back to the first
+  // active column so it's not "done column but not done".
+  if (!task.parentId) {
+    const columns = await db.column.findMany({ orderBy: { order: "asc" } });
+    const inDone = columns.some(
+      (c) => c.id === task.columnId && isDoneColumnName(c.name)
+    );
+    if (inDone) {
+      const firstActive = columns.find((c) => !isDoneColumnName(c.name));
+      if (firstActive) {
+        data.columnId = firstActive.id;
+        data.order = await topOrderOf(firstActive.id);
+      }
+    }
+  }
+
+  await db.task.update({ where: { id }, data });
   revalidateBoardPages();
 }
 

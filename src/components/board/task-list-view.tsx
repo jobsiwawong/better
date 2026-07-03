@@ -17,15 +17,12 @@ import {
 } from "@/app/actions/saved-views";
 import type { BoardData, BoardColumn } from "@/lib/queries/board";
 import { useTaskUrlParam } from "@/lib/use-task-url-param";
+import { isDoneColumnName } from "@/lib/done-column";
 
 type SortField = "title" | "owner" | "priority" | "dueDate" | "status";
 type SortDir = "asc" | "desc";
 
 const PRIORITY_RANK: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-
-function isDoneColumn(name: string) {
-  return /\b(done|complete|completed|shipped)\b/i.test(name);
-}
 
 function isOverdue(task: { dueDate: Date | string | null }) {
   if (!task.dueDate) return false;
@@ -221,7 +218,7 @@ export function TaskListView({
                         <span
                           className={cn(
                             "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                            isDoneColumn(name)
+                            isDoneColumnName(name)
                               ? "bg-[#7a9e7e]/20 text-[#4f7a54]"
                               : "bg-muted text-muted-foreground"
                           )}

@@ -99,25 +99,32 @@ export function KanbanBoard({
   }, []);
 
   const handleComplete = (task: BoardTask | BoardChildTask) => {
-    setColumns((prev) =>
-      prev.map((c) => ({
-        ...c,
-        tasks: c.tasks
-          .filter((t) => t.id !== task.id)
-          .map((t) => ({
-            ...t,
-            children: t.children.filter((ch) => ch.id !== task.id),
-          })),
-      }))
-    );
+    // Card stays on the board — it moves into the Done column — so no optimistic
+    // removal; a refresh reflects the move. Undo restores its prior position.
+    const originColumnId = task.columnId;
+    const originOrder = task.order;
+    const nested = !!task.parentId;
     completeTask(task.id).then(() => router.refresh());
     const entry = pushUndo({
       label: `complete "${task.title}"`,
-      undo: () => uncompleteTask(task.id).then(() => router.refresh()),
+      undo: () =>
+        (nested
+          ? uncompleteTask(task.id)
+          : moveTask(task.id, originColumnId, originOrder)
+        ).then(() => router.refresh()),
       redo: () => completeTask(task.id).then(() => router.refresh()),
     });
     toast(`Completed "${task.title}" 🎉`, {
       action: { label: "Undo", onClick: () => undoSpecific(entry) },
+    });
+  };
+
+  const handleUncomplete = (task: BoardTask | BoardChildTask) => {
+    uncompleteTask(task.id).then(() => router.refresh());
+    pushUndo({
+      label: `mark "${task.title}" incomplete`,
+      undo: () => completeTask(task.id).then(() => router.refresh()),
+      redo: () => uncompleteTask(task.id).then(() => router.refresh()),
     });
   };
 
@@ -300,6 +307,7 @@ export function KanbanBoard({
                 dragActiveTaskId={dragActiveTaskId}
                 onOpenTask={(task) => setSelectedTaskId(task.id)}
                 onCompleteTask={handleComplete}
+                onUncompleteTask={handleUncomplete}
                 onUnnestTask={handleUnnest}
                 onQuickAdd={(title) =>
                   quickCreateTask(title, column.id).then((created) => {
