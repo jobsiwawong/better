@@ -133,6 +133,7 @@ model Note {
   content        String? // Tiptap JSON, serialized
   pinned         Boolean   @default(false)
   isMeeting      Boolean   @default(false)
+  participants   String?
   agenda         String?
   actionItemsRaw String?
   archived       Boolean   @default(false)

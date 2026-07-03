@@ -3,13 +3,15 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Search, Users } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FolderTree } from "@/components/notes/folder-tree";
 import { NoteList } from "@/components/notes/note-list";
 import { NoteEditor } from "@/components/notes/note-editor";
-import { createNote } from "@/app/actions/notes";
+import { archiveNote, createNote, restoreNote } from "@/app/actions/notes";
 import { extractPlainText } from "@/lib/tiptap-text";
+import { pushUndo, undoSpecific } from "@/lib/undo-store";
 import type { NotesData } from "@/lib/queries/notes";
 
 export function NotesShell({
@@ -58,6 +60,23 @@ export function NotesShell({
   const refreshData = () => router.refresh();
 
   const openNote = (id: string) => router.push(`/notes/${id}`);
+
+  const handleDeleteNote = (id: string) => {
+    const note = notes.find((n) => n.id === id);
+    const title = note?.title ?? "note";
+    archiveNote(id).then(() => {
+      router.refresh();
+      if (selectedNoteId === id) router.push("/notes");
+      const entry = pushUndo({
+        label: `delete note "${title}"`,
+        undo: () => restoreNote(id).then(() => router.refresh()),
+        redo: () => archiveNote(id).then(() => router.refresh()),
+      });
+      toast(`Deleted "${title}"`, {
+        action: { label: "Undo", onClick: () => undoSpecific(entry) },
+      });
+    });
+  };
 
   const handleNewNote = (isMeeting: boolean) => {
     createNote({
@@ -117,6 +136,7 @@ export function NotesShell({
             notes={filtered}
             selectedNoteId={selectedNoteId}
             onSelect={openNote}
+            onDelete={handleDeleteNote}
             highlight={query.trim() || undefined}
           />
         </div>

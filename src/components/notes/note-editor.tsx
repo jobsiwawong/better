@@ -37,6 +37,7 @@ export function NoteEditor({
 }) {
   const router = useRouter();
   const [title, setTitle] = React.useState(note.title);
+  const [participants, setParticipants] = React.useState(note.participants ?? "");
   const [agenda, setAgenda] = React.useState(note.agenda ?? "");
   const [actionItemsRaw, setActionItemsRaw] = React.useState(note.actionItemsRaw ?? "");
   const [tagIds, setTagIds] = React.useState(note.tags.map((t) => t.tag.id));
@@ -50,6 +51,12 @@ export function NoteEditor({
   const commitTitle = () => {
     if (title.trim() !== note.title) {
       updateNote(note.id, { title }).then(refresh);
+    }
+  };
+
+  const commitParticipants = () => {
+    if (participants !== (note.participants ?? "")) {
+      updateNote(note.id, { participants }).then(refresh);
     }
   };
 
@@ -170,6 +177,17 @@ export function NoteEditor({
 
       {note.isMeeting && (
         <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Participants</Label>
+            <Textarea
+              value={participants}
+              onChange={(e) => setParticipants(e.target.value)}
+              onBlur={commitParticipants}
+              placeholder="Who's in the meeting… (e.g. Priya Nair, Jordan Lee)"
+              className="min-h-12 text-sm"
+            />
+          </div>
+
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Agenda</Label>
             <Textarea

@@ -21,6 +21,7 @@ export async function createNote(opts?: {
 export interface NoteUpdateInput {
   title?: string;
   content?: string | null;
+  participants?: string | null;
   agenda?: string | null;
   actionItemsRaw?: string | null;
   pinned?: boolean;
@@ -32,6 +33,7 @@ export async function updateNote(id: string, patch: NoteUpdateInput) {
   const data: Record<string, unknown> = {};
   if (patch.title !== undefined) data.title = patch.title.trim() || "Untitled note";
   if (patch.content !== undefined) data.content = patch.content;
+  if (patch.participants !== undefined) data.participants = patch.participants;
   if (patch.agenda !== undefined) data.agenda = patch.agenda;
   if (patch.actionItemsRaw !== undefined) data.actionItemsRaw = patch.actionItemsRaw;
   if (patch.pinned !== undefined) data.pinned = patch.pinned;

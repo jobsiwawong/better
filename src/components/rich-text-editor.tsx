@@ -10,19 +10,25 @@ import { Table } from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
+import Image from "@tiptap/extension-image";
 import {
   Bold,
   CheckSquare,
+  Columns3,
+  ImagePlus,
   Italic,
   List,
   ListOrdered,
+  Rows3,
   Table as TableIcon,
+  Trash2,
   Underline as UnderlineIcon,
   Heading2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { uploadImage, MAX_IMAGE_BYTES } from "@/lib/upload-image";
 
 export interface RichTextEditorHandle {
   getJSON: () => object;
@@ -52,6 +58,9 @@ export function RichTextEditor({
     }
   }, [content]);
 
+  // Held in a ref so the (stable) paste handler can reach the latest editor.
+  const editorRef = React.useRef<Editor | null>(null);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -66,10 +75,11 @@ export function RichTextEditor({
         ? [
             TaskList,
             TaskItem.configure({ nested: true }),
-            Table.configure({ resizable: false }),
+            Table.configure({ resizable: true }),
             TableRow,
             TableHeader,
             TableCell,
+            Image.configure({ inline: false, allowBase64: true }),
           ]
         : []),
     ],
@@ -82,8 +92,32 @@ export function RichTextEditor({
           "prose-headings:font-semibold prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5"
         ),
       },
+      handlePaste:
+        variant === "full"
+          ? (view, event) => {
+              const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+                f.type.startsWith("image/")
+              );
+              if (files.length === 0) return false;
+              event.preventDefault();
+              files.forEach(async (file) => {
+                if (file.size > MAX_IMAGE_BYTES) return;
+                const src = await uploadImage(file);
+                editorRef.current
+                  ?.chain()
+                  .focus()
+                  .setImage({ src })
+                  .run();
+              });
+              return true;
+            }
+          : undefined,
     },
   });
+
+  React.useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   return (
     <div className={cn("rounded-2xl border border-border bg-background", className)}>
@@ -102,7 +136,24 @@ function Toolbar({
   editor: Editor;
   variant: "basic" | "full";
 }) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const inTable = editor.isActive("table");
+
+  const insertImages = async (files: FileList | null) => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      if (file.size > MAX_IMAGE_BYTES) {
+        window.alert("That image is too large (max 8 MB).");
+        continue;
+      }
+      const src = await uploadImage(file);
+      editor.chain().focus().setImage({ src }).run();
+    }
+  };
+
   return (
+    <>
     <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
       <ToolbarButton
         active={editor.isActive("bold")}
@@ -172,9 +223,78 @@ function Toolbar({
           >
             <TableIcon className="size-3.5" />
           </ToolbarButton>
+          <ToolbarButton
+            active={false}
+            onClick={() => fileInputRef.current?.click()}
+            label="Insert image"
+          >
+            <ImagePlus className="size-3.5" />
+          </ToolbarButton>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              insertImages(e.target.files);
+              e.target.value = "";
+            }}
+          />
         </>
       )}
     </div>
+
+    {variant === "full" && inTable && (
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/40 px-2 py-1.5 text-xs">
+        <span className="mr-1 font-medium text-muted-foreground">Table:</span>
+        <TableChip onClick={() => editor.chain().focus().addRowAfter().run()}>
+          <Rows3 className="size-3" /> Add row
+        </TableChip>
+        <TableChip onClick={() => editor.chain().focus().addColumnAfter().run()}>
+          <Columns3 className="size-3" /> Add column
+        </TableChip>
+        <TableChip onClick={() => editor.chain().focus().deleteRow().run()}>
+          <Rows3 className="size-3" /> Delete row
+        </TableChip>
+        <TableChip onClick={() => editor.chain().focus().deleteColumn().run()}>
+          <Columns3 className="size-3" /> Delete column
+        </TableChip>
+        <TableChip onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+          Header row
+        </TableChip>
+        <TableChip
+          onClick={() => editor.chain().focus().deleteTable().run()}
+          destructive
+        >
+          <Trash2 className="size-3" /> Delete table
+        </TableChip>
+      </div>
+    )}
+    </>
+  );
+}
+
+function TableChip({
+  onClick,
+  children,
+  destructive,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 font-medium transition-colors hover:bg-accent",
+        destructive && "text-destructive hover:bg-destructive/10"
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
