@@ -24,6 +24,11 @@ import {
   listOwnersWithUsage,
   updateOwner,
 } from "@/app/actions/owners";
+import {
+  deleteExpenseCategory,
+  listExpenseCategoriesWithUsage,
+  updateExpenseCategory,
+} from "@/app/actions/expense-categories";
 import { TAG_PALETTE } from "@/lib/tag-palette";
 import { pushUndo } from "@/lib/undo-store";
 import { cn } from "@/lib/utils";
@@ -39,8 +44,14 @@ interface OwnerRow {
   name: string;
   _count: { taskOwners: number };
 }
+interface CategoryRow {
+  id: string;
+  name: string;
+  color: string;
+  _count: { expenses: number };
+}
 
-export type ManageLabelsTab = "tags" | "people";
+export type ManageLabelsTab = "tags" | "people" | "categories";
 
 export function openManageLabels(tab: ManageLabelsTab = "tags") {
   window.dispatchEvent(new CustomEvent("open-manage-labels", { detail: { tab } }));
@@ -132,10 +143,12 @@ export function ManageLabelsDialog() {
   const [tab, setTab] = React.useState<ManageLabelsTab>("tags");
   const [tags, setTags] = React.useState<TagRow[]>([]);
   const [owners, setOwners] = React.useState<OwnerRow[]>([]);
+  const [categories, setCategories] = React.useState<CategoryRow[]>([]);
 
   const reload = React.useCallback(() => {
     listTagsWithUsage().then(setTags);
     listOwnersWithUsage().then(setOwners);
+    listExpenseCategoriesWithUsage().then(setCategories);
   }, []);
 
   React.useEffect(() => {
@@ -194,11 +207,37 @@ export function ManageLabelsDialog() {
     toast(`Removed "${owner.name}"`);
   };
 
+  const renameCategory = (category: CategoryRow, name: string) => {
+    const prev = category.name;
+    updateExpenseCategory(category.id, { name }).then(refresh);
+    pushUndo({
+      label: `rename category "${prev}" to "${name}"`,
+      undo: () => updateExpenseCategory(category.id, { name: prev }).then(refresh),
+      redo: () => updateExpenseCategory(category.id, { name }).then(refresh),
+    });
+  };
+
+  const recolorCategory = (category: CategoryRow) => {
+    const i = TAG_PALETTE.indexOf(category.color);
+    const next = TAG_PALETTE[(i + 1) % TAG_PALETTE.length];
+    setCategories((prev) =>
+      prev.map((c) => (c.id === category.id ? { ...c, color: next } : c))
+    );
+    updateExpenseCategory(category.id, { color: next }).then(() =>
+      router.refresh()
+    );
+  };
+
+  const removeCategory = (category: CategoryRow) => {
+    deleteExpenseCategory(category.id).then(refresh);
+    toast(`Deleted category "${category.name}"`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-md gap-4">
         <DialogHeader>
-          <DialogTitle>Manage tags &amp; people</DialogTitle>
+          <DialogTitle>Manage tags, people &amp; categories</DialogTitle>
           <DialogDescription>
             Rename, recolor, or delete. Changes apply everywhere they&rsquo;re used.
           </DialogDescription>
@@ -211,6 +250,9 @@ export function ManageLabelsDialog() {
             </TabsTrigger>
             <TabsTrigger value="people" className="flex-1">
               People
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="flex-1">
+              Categories
             </TabsTrigger>
           </TabsList>
 
@@ -266,6 +308,46 @@ export function ManageLabelsDialog() {
                   {usageText([[owner._count.taskOwners, "task"]])}
                 </span>
                 <DeleteButton onDelete={() => removeOwner(owner)} />
+              </div>
+            ))}
+          </TabsContent>
+
+          <TabsContent
+            value="categories"
+            className="mt-3 max-h-80 space-y-0.5 overflow-y-auto"
+          >
+            {categories.length === 0 && (
+              <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                No expense categories yet. Create one from any expense.
+              </p>
+            )}
+            {categories.map((category) => (
+              <div
+                key={category.id}
+                className="flex items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-muted/50"
+              >
+                <button
+                  type="button"
+                  onClick={() => recolorCategory(category)}
+                  className={cn(
+                    "size-4 shrink-0 rounded-full ring-offset-background transition-transform",
+                    "hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  )}
+                  style={{ backgroundColor: category.color }}
+                  aria-label={`Change color of ${category.name}`}
+                  title="Click to change color"
+                />
+                <NameInput
+                  name={category.name}
+                  taken={categories
+                    .filter((c) => c.id !== category.id)
+                    .map((c) => c.name)}
+                  onCommit={(next) => renameCategory(category, next)}
+                />
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {usageText([[category._count.expenses, "expense"]])}
+                </span>
+                <DeleteButton onDelete={() => removeCategory(category)} />
               </div>
             ))}
           </TabsContent>

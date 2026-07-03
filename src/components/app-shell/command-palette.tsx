@@ -9,6 +9,7 @@ import {
   Moon,
   NotebookText,
   Plus,
+  Receipt,
   Sparkles,
   Sun,
   Tags,
@@ -140,6 +141,7 @@ export function CommandPalette() {
     { label: "Today", icon: Sparkles, onSelect: () => go("/") },
     { label: "Board", icon: KanbanSquare, onSelect: () => go("/board") },
     { label: "Notes", icon: NotebookText, onSelect: () => go("/notes") },
+    { label: "Expenses", icon: Receipt, onSelect: () => go("/expenses") },
     { label: "Weekly digest", icon: CalendarDays, onSelect: () => go("/digest") },
     {
       label: "Quick add task or note",

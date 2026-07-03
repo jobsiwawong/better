@@ -45,6 +45,7 @@ model Owner {
   name      String      @unique
   createdAt DateTime    @default(now())
   taskOwners TaskOwner[]
+  expenses  Expense[]
 }
 
 model Column {
@@ -183,4 +184,75 @@ model SavedView {
   type      SavedViewType
   filters   String // JSON, serialized
   createdAt DateTime      @default(now())
+}
+
+enum ExpenseStatus {
+  NOT_FILED
+  PENDING_APPROVAL
+  APPROVED
+  REIMBURSED
+}
+
+enum PaymentMethod {
+  PERSONAL
+  CORPORATE_CARD
+}
+
+model Trip {
+  id           String    @id @default(cuid())
+  name         String    @unique
+  homeCurrency String    @default("USD") // "USD" | "EUR" | "THB"
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime  @default(now())
+  expenses     Expense[]
+}
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  color     String
+  createdAt DateTime  @default(now())
+  expenses  Expense[]
+}
+
+model Expense {
+  id             String        @id @default(cuid())
+  merchant       String
+  date           DateTime
+  amountMinor    Int // local amount in minor units (cents/satang/fils)
+  currency       String // "USD" | "EUR" | "THB" | "AED"
+  homeCurrency   String // snapshot of trip home currency at conversion time
+  fxRate         Float // local -> home multiplier; 1 when same currency
+  fxSource       String // "ecb" | "peg" | "same" | "manual" | "stale-cache"
+  convertedMinor Int // amount in home currency minor units (snapshot)
+  status         ExpenseStatus @default(NOT_FILED)
+  paymentMethod  PaymentMethod @default(PERSONAL)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  trip       Trip?            @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  tripId     String?
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+  approver   Owner?           @relation(fields: [approverId], references: [id], onDelete: SetNull)
+  approverId String?
+
+  receipts ExpenseReceipt[]
+}
+
+model ExpenseReceipt {
+  id        String   @id @default(cuid())
+  expenseId String
+  image     String // base64 data URL (interim; swap to hosted URL later)
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+}
+
+model FxRate {
+  date      String   @id // requested date, "YYYY-MM-DD"
+  rates     String // JSON: {"USD":1,"EUR":...,"THB":...,"AED":3.6725}
+  fetchedAt DateTime @default(now())
 }

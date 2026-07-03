@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   KanbanSquare,
   NotebookText,
+  Receipt,
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Today", icon: Sparkles, exact: true },
   { href: "/board", label: "Board", icon: KanbanSquare },
   { href: "/notes", label: "Notes", icon: NotebookText },
+  { href: "/expenses", label: "Expenses", icon: Receipt },
   { href: "/digest", label: "Weekly digest", icon: CalendarDays },
 ];
 
