@@ -11,12 +11,16 @@ export function NoteList({
   onSelect,
   onDelete,
   highlight,
+  folderNameById,
+  selectedFolderId,
 }: {
   notes: NoteWithRelations[];
   selectedNoteId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   highlight?: string;
+  folderNameById?: Map<string, string>;
+  selectedFolderId?: string | null | "all";
 }) {
   if (notes.length === 0) {
     return (
@@ -30,6 +34,16 @@ export function NoteList({
     <div className="space-y-1">
       {notes.map((note) => {
         const snippet = extractPlainText(note.content).slice(0, 80);
+        // Show which folder a note lives in whenever the list mixes notes
+        // from more than one folder (all-notes view, or a parent folder
+        // whose count aggregates its subfolders) — redundant otherwise.
+        const showFolderTag =
+          note.folderId &&
+          folderNameById &&
+          (selectedFolderId === "all" || note.folderId !== selectedFolderId);
+        const folderTag = showFolderTag
+          ? folderNameById!.get(note.folderId!)
+          : undefined;
         return (
           <div
             key={note.id}
@@ -48,6 +62,11 @@ export function NoteList({
                 <span className="truncate text-sm font-medium text-foreground">
                   <Highlighted text={note.title} query={highlight} />
                 </span>
+                {folderTag && (
+                  <span className="ml-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {folderTag}
+                  </span>
+                )}
               </div>
               {snippet && (
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">

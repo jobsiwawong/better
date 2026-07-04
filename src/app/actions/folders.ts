@@ -34,3 +34,21 @@ export async function deleteFolder(id: string) {
   await db.folder.delete({ where: { id } });
   revalidatePath("/notes");
 }
+
+export async function moveFolder(folderId: string, newParentId: string | null) {
+  if (folderId === newParentId) return;
+  if (newParentId) {
+    let current: string | null = newParentId;
+    while (current) {
+      if (current === folderId)
+        throw new Error("Cannot nest a folder inside itself");
+      const parent: { parentId: string | null } | null = await db.folder.findUnique({
+        where: { id: current },
+        select: { parentId: true },
+      });
+      current = parent?.parentId ?? null;
+    }
+  }
+  await db.folder.update({ where: { id: folderId }, data: { parentId: newParentId } });
+  revalidatePath("/notes");
+}

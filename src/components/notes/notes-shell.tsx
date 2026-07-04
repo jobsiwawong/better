@@ -12,6 +12,10 @@ import { NoteEditor } from "@/components/notes/note-editor";
 import { archiveNote, createNote, restoreNote } from "@/app/actions/notes";
 import { extractPlainText } from "@/lib/tiptap-text";
 import { pushUndo, undoSpecific } from "@/lib/undo-store";
+import {
+  buildAggregateNoteCounts,
+  buildFolderDescendantIds,
+} from "@/lib/folder-tree-utils";
 import type { NotesData } from "@/lib/queries/notes";
 
 export function NotesShell({
@@ -31,7 +35,7 @@ export function NotesShell({
   );
   const [query, setQuery] = React.useState("");
 
-  const noteCountByFolder = React.useMemo(() => {
+  const directCountByFolder = React.useMemo(() => {
     const map = new Map<string | null, number>();
     for (const note of notes) {
       map.set(note.folderId, (map.get(note.folderId) ?? 0) + 1);
@@ -39,10 +43,35 @@ export function NotesShell({
     return map;
   }, [notes]);
 
+  const folderDescendantIds = React.useMemo(
+    () => buildFolderDescendantIds(folders),
+    [folders]
+  );
+
+  // Badge counts include notes nested in subfolders, so a parent folder's
+  // count reflects everything you'll see when you click into it.
+  const noteCountByFolder = React.useMemo(() => {
+    const aggregate: Map<string | null, number> = buildAggregateNoteCounts(
+      folders,
+      directCountByFolder
+    );
+    aggregate.set(null, directCountByFolder.get(null) ?? 0);
+    return aggregate;
+  }, [folders, directCountByFolder]);
+
+  const folderNameById = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of folders) map.set(f.id, f.name);
+    return map;
+  }, [folders]);
+
   const filtered = React.useMemo(() => {
     let list = notes;
-    if (selectedFolderId !== "all") {
-      list = list.filter((n) => n.folderId === selectedFolderId);
+    if (selectedFolderId !== "all" && selectedFolderId !== null) {
+      const ids = folderDescendantIds.get(selectedFolderId) ?? new Set([selectedFolderId]);
+      list = list.filter((n) => n.folderId !== null && ids.has(n.folderId));
+    } else if (selectedFolderId === null) {
+      list = list.filter((n) => n.folderId === null);
     }
     if (query.trim()) {
       const q = query.trim().toLowerCase();
@@ -53,7 +82,7 @@ export function NotesShell({
       );
     }
     return list;
-  }, [notes, selectedFolderId, query]);
+  }, [notes, selectedFolderId, query, folderDescendantIds]);
 
   const selectedNote = notes.find((n) => n.id === selectedNoteId) ?? null;
 
@@ -138,6 +167,8 @@ export function NotesShell({
             onSelect={openNote}
             onDelete={handleDeleteNote}
             highlight={query.trim() || undefined}
+            folderNameById={folderNameById}
+            selectedFolderId={selectedFolderId}
           />
         </div>
       </div>
