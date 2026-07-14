@@ -74,7 +74,6 @@ export function TripSection({
           <span className="text-xs text-muted-foreground">{range}</span>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <TripSummary expenses={expenses} homeCurrency={homeCurrency} />
           {expenses.length > 0 && (
             <Button
               variant="ghost"
@@ -115,6 +114,7 @@ export function TripSection({
           )}
         </div>
       </header>
+      <TripSummary expenses={expenses} homeCurrency={homeCurrency} />
       <ExpenseTable
         expenses={expenses}
         onOpen={onOpenExpense}

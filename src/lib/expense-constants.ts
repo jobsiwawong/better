@@ -21,27 +21,31 @@ export const STATUS_ORDER: ExpenseStatusValue[] = [
 
 export const STATUS_META: Record<
   ExpenseStatusValue,
-  { label: string; className: string; dotClassName: string }
+  { label: string; className: string; dotClassName: string; chartColor: string }
 > = {
   NOT_FILED: {
     label: "Not filed",
     className: "bg-muted text-muted-foreground",
     dotClassName: "bg-muted-foreground/60",
+    chartColor: "#a8a099",
   },
   PENDING_APPROVAL: {
     label: "Pending approval",
     className: "bg-[#d4a24c]/15 text-[#a97b2e] dark:text-[#d4a24c]",
     dotClassName: "bg-[#d4a24c]",
+    chartColor: "#d4a24c",
   },
   APPROVED: {
     label: "Approved",
     className: "bg-[#6a94a8]/15 text-[#4d7488] dark:text-[#8fb4c6]",
     dotClassName: "bg-[#6a94a8]",
+    chartColor: "#6a94a8",
   },
   REIMBURSED: {
     label: "Reimbursed",
     className: "bg-[#3f8f5c] text-white",
     dotClassName: "bg-[#3f8f5c] ring-1 ring-white/80",
+    chartColor: "#3f8f5c",
   },
 };
 

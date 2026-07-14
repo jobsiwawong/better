@@ -17,7 +17,7 @@ function formatDate(date: Date | string) {
 }
 
 const GRID =
-  "grid grid-cols-[76px_minmax(0,1fr)_120px_110px_120px_150px_88px_96px_44px] items-center gap-2";
+  "grid grid-cols-[72px_minmax(160px,1fr)_130px_150px_36px_40px] items-center gap-3";
 
 export function ExpenseTable({
   expenses,
@@ -38,7 +38,7 @@ export function ExpenseTable({
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[900px]">
+      <div className="min-w-[620px]">
         <div
           className={cn(
             GRID,
@@ -47,12 +47,9 @@ export function ExpenseTable({
         >
           <span>Date</span>
           <span>Merchant</span>
-          <span>Category</span>
           <span className="text-right">Amount</span>
-          <span className="text-right">Converted</span>
           <span>Status</span>
-          <span>Payment</span>
-          <span>Approver</span>
+          <span />
           <span />
         </div>
         {expenses.map((e) => (
@@ -70,11 +67,11 @@ export function ExpenseTable({
             )}
           >
             <span className="text-muted-foreground">{formatDate(e.date)}</span>
-            <span className="truncate font-medium">{e.merchant}</span>
-            <span>
-              {e.category ? (
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-medium">{e.merchant}</span>
+              {e.category && (
                 <span
-                  className="inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-xs font-medium"
+                  className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium"
                   style={{
                     backgroundColor: `${e.category.color}22`,
                     color: e.category.color,
@@ -82,20 +79,24 @@ export function ExpenseTable({
                 >
                   {e.category.name}
                 </span>
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
               )}
             </span>
-            <span className="text-right tabular-nums">
-              {formatMinor(e.amountMinor, e.currency)}
-            </span>
             <span
-              className="text-right tabular-nums text-muted-foreground"
-              title={`Rate ${e.fxRate.toFixed(4)} (${e.fxSource})`}
+              className="text-right tabular-nums"
+              title={
+                e.currency === e.homeCurrency
+                  ? undefined
+                  : `Rate ${e.fxRate.toFixed(4)} (${e.fxSource})`
+              }
             >
-              {e.currency === e.homeCurrency
-                ? "—"
-                : formatMinor(e.convertedMinor, e.homeCurrency)}
+              <span className="block font-medium">
+                {formatMinor(e.convertedMinor, e.homeCurrency)}
+              </span>
+              {e.currency !== e.homeCurrency && (
+                <span className="block text-xs text-muted-foreground">
+                  {formatMinor(e.amountMinor, e.currency)}
+                </span>
+              )}
             </span>
             <span>
               <StatusPill
@@ -104,7 +105,7 @@ export function ExpenseTable({
               />
             </span>
             <span
-              className="flex items-center gap-1 text-xs text-muted-foreground"
+              className="flex items-center justify-center text-muted-foreground"
               title={
                 e.paymentMethod === "PERSONAL"
                   ? "Personal (reimbursable)"
@@ -116,10 +117,6 @@ export function ExpenseTable({
               ) : (
                 <CreditCard className="size-3.5" />
               )}
-              {e.paymentMethod === "PERSONAL" ? "Personal" : "Corp"}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {e.approver?.name ?? "—"}
             </span>
             <span className="flex items-center justify-end gap-0.5 text-xs text-muted-foreground">
               {e.receipts.length > 0 && (
