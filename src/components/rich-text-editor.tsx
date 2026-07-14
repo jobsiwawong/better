@@ -88,9 +88,13 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: cn(
-          "prose prose-sm max-w-none focus:outline-none dark:prose-invert",
+          "prose prose-sm max-w-none px-4 py-3 focus:outline-none dark:prose-invert",
           "prose-headings:font-semibold prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5"
         ),
+        // Min-height lives on the editable element itself (not a wrapper) so
+        // the whole visible box is clickable — otherwise clicks below the first
+        // line miss the contenteditable and the editor never focuses.
+        style: `min-height: ${minHeight}`,
       },
       handlePaste:
         variant === "full"
@@ -122,9 +126,7 @@ export function RichTextEditor({
   return (
     <div className={cn("rounded-2xl border border-border bg-background", className)}>
       {editor && <Toolbar editor={editor} variant={variant} />}
-      <div className="px-4 py-3" style={{ minHeight }}>
-        <EditorContent editor={editor} />
-      </div>
+      <EditorContent editor={editor} />
     </div>
   );
 }
