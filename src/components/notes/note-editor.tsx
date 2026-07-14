@@ -48,6 +48,37 @@ export function NoteEditor({
     onMutated();
   };
 
+  // Content saves are debounced and do NOT refresh the route: writing the doc
+  // and re-fetching the whole notes tree on every keystroke re-renders the
+  // editor mid-typing, which on a freshly-created note drops the first burst
+  // of characters. We persist ~700ms after typing stops, and flush any pending
+  // save when the editor unmounts (e.g. switching notes) so nothing is lost.
+  const pendingContentRef = React.useRef<string | null>(null);
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushContent = React.useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const content = pendingContentRef.current;
+    if (content === null) return;
+    pendingContentRef.current = null;
+    updateNote(note.id, { content }).then(() => router.refresh());
+  }, [note.id, router]);
+
+  const handleContentChange = React.useCallback(
+    (json: object) => {
+      pendingContentRef.current = JSON.stringify(json);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(flushContent, 700);
+    },
+    [flushContent]
+  );
+
+  // Flush on unmount and whenever we switch to a different note.
+  React.useEffect(() => flushContent, [flushContent]);
+
   const commitTitle = () => {
     if (title.trim() !== note.title) {
       updateNote(note.id, { title }).then(refresh);
@@ -256,7 +287,7 @@ export function NoteEditor({
       <RichTextEditor
         key={note.id}
         content={note.content}
-        onChange={(json) => updateNote(note.id, { content: JSON.stringify(json) }).then(refresh)}
+        onChange={handleContentChange}
         placeholder={note.isMeeting ? "Freeform notes…" : "Start writing…"}
         variant="full"
         minHeight="16rem"
