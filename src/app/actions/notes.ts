@@ -53,6 +53,15 @@ export async function updateNote(id: string, patch: NoteUpdateInput) {
   return note;
 }
 
+export async function moveNote(id: string, folderId: string | null) {
+  const note = await db.note.update({
+    where: { id },
+    data: { folderId },
+  });
+  revalidatePath("/notes");
+  return note;
+}
+
 export async function archiveNote(id: string) {
   await db.note.update({
     where: { id },

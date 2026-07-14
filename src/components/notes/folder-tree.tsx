@@ -1,15 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  DndContext,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronRight, Folder, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,19 +13,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  createFolder,
-  deleteFolder,
-  moveFolder,
-  renameFolder,
-} from "@/app/actions/folders";
-import { buildFolderDescendantIds } from "@/lib/folder-tree-utils";
-import { pushUndo } from "@/lib/undo-store";
+import { createFolder, deleteFolder, renameFolder } from "@/app/actions/folders";
 import type { NotesData } from "@/lib/queries/notes";
 
 type FolderRow = NotesData["folders"][number];
 
-const ROOT_DROP_ID = "__root";
+// Drop-zone ids shared with the shell's drag handler. Folders dropped on
+// ROOT un-nest to the top level; notes dropped on UNFILED become filed to no
+// folder (both are "no parent", but they mean different things per drag type).
+export const ROOT_DROP_ID = "__root";
+export const UNFILED_DROP_ID = "__unfiled";
 
 export function FolderTree({
   folders,
@@ -49,78 +38,38 @@ export function FolderTree({
   onMutated: () => void;
 }) {
   const roots = folders.filter((f) => !f.parentId);
-  const descendantIds = React.useMemo(
-    () => buildFolderDescendantIds(folders),
-    [folders]
-  );
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    const folderId = String(active.id);
-    const targetId = String(over.id);
-    if (targetId === folderId) return;
-    // Dragging a folder onto its own descendant would create a cycle.
-    if (targetId !== ROOT_DROP_ID && descendantIds.get(folderId)?.has(targetId)) return;
-
-    const newParentId = targetId === ROOT_DROP_ID ? null : targetId;
-    const folder = folders.find((f) => f.id === folderId);
-    if (!folder || folder.parentId === newParentId) return;
-    const prevParentId = folder.parentId;
-
-    moveFolder(folderId, newParentId).then(onMutated);
-    pushUndo({
-      label: `move folder "${folder.name}"`,
-      undo: () => moveFolder(folderId, prevParentId).then(onMutated),
-      redo: () => moveFolder(folderId, newParentId).then(onMutated),
-    });
-  };
 
   return (
-    <DndContext id="folder-tree-dnd" sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="space-y-0.5">
-        <RootDropZone selectedFolderId={selectedFolderId} onSelect={onSelect} />
-        <button
-          onClick={() => onSelect(null)}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
-            selectedFolderId === null && "bg-accent font-medium"
-          )}
-        >
-          Unfiled
-          {(noteCountByFolder.get(null) ?? 0) > 0 && (
-            <span className="ml-auto text-xs text-muted-foreground">
-              {noteCountByFolder.get(null)}
-            </span>
-          )}
-        </button>
+    <div className="space-y-0.5">
+      <RootDropZone selectedFolderId={selectedFolderId} onSelect={onSelect} />
+      <UnfiledDropZone
+        selectedFolderId={selectedFolderId}
+        onSelect={onSelect}
+        count={noteCountByFolder.get(null) ?? 0}
+      />
 
-        <div className="pt-1">
-          {roots.map((folder) => (
-            <FolderNode
-              key={folder.id}
-              folder={folder}
-              depth={0}
-              allFolders={folders}
-              noteCountByFolder={noteCountByFolder}
-              selectedFolderId={selectedFolderId}
-              onSelect={onSelect}
-              onMutated={onMutated}
-            />
-          ))}
-        </div>
-
-        <button
-          onClick={() => createFolder("New folder").then(onMutated)}
-          className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          <Plus className="size-3.5" /> New folder
-        </button>
+      <div className="pt-1">
+        {roots.map((folder) => (
+          <FolderNode
+            key={folder.id}
+            folder={folder}
+            depth={0}
+            allFolders={folders}
+            noteCountByFolder={noteCountByFolder}
+            selectedFolderId={selectedFolderId}
+            onSelect={onSelect}
+            onMutated={onMutated}
+          />
+        ))}
       </div>
-    </DndContext>
+
+      <button
+        onClick={() => createFolder("New folder").then(onMutated)}
+        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <Plus className="size-3.5" /> New folder
+      </button>
+    </div>
   );
 }
 
@@ -143,6 +92,34 @@ function RootDropZone({
       )}
     >
       All notes
+    </button>
+  );
+}
+
+function UnfiledDropZone({
+  selectedFolderId,
+  onSelect,
+  count,
+}: {
+  selectedFolderId: string | null | "all";
+  onSelect: (id: string | null | "all") => void;
+  count: number;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: UNFILED_DROP_ID });
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={() => onSelect(null)}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent",
+        selectedFolderId === null && "bg-accent font-medium",
+        isOver && "ring-2 ring-primary bg-primary/10"
+      )}
+    >
+      Unfiled
+      {count > 0 && (
+        <span className="ml-auto text-xs text-muted-foreground">{count}</span>
+      )}
     </button>
   );
 }

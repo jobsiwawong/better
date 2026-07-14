@@ -1,5 +1,7 @@
 "use client";
 
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { Pin, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { extractPlainText } from "@/lib/tiptap-text";
@@ -33,7 +35,6 @@ export function NoteList({
   return (
     <div className="space-y-1">
       {notes.map((note) => {
-        const snippet = extractPlainText(note.content).slice(0, 80);
         // Show which folder a note lives in whenever the list mixes notes
         // from more than one folder (all-notes view, or a parent folder
         // whose count aggregates its subfolders) — redundant otherwise.
@@ -45,49 +46,87 @@ export function NoteList({
           ? folderNameById!.get(note.folderId!)
           : undefined;
         return (
-          <div
+          <NoteRow
             key={note.id}
-            className={cn(
-              "group relative rounded-xl transition-colors hover:bg-accent",
-              selectedNoteId === note.id && "bg-accent"
-            )}
-          >
-            <button
-              onClick={() => onSelect(note.id)}
-              className="block w-full rounded-xl px-3 py-2 pr-9 text-left"
-            >
-              <div className="flex items-center gap-1.5">
-                {note.pinned && <Pin className="size-3 shrink-0 fill-current text-primary" />}
-                {note.isMeeting && <Users className="size-3 shrink-0 text-muted-foreground" />}
-                <span className="truncate text-sm font-medium text-foreground">
-                  <Highlighted text={note.title} query={highlight} />
-                </span>
-                {folderTag && (
-                  <span className="ml-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    {folderTag}
-                  </span>
-                )}
-              </div>
-              {snippet && (
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  <Highlighted text={snippet} query={highlight} />
-                </p>
-              )}
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(note.id);
-              }}
-              aria-label={`Delete ${note.title}`}
-              title="Delete note"
-              className="absolute right-1.5 top-1.5 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-destructive focus:opacity-100 group-hover:opacity-100"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-          </div>
+            note={note}
+            selected={selectedNoteId === note.id}
+            onSelect={onSelect}
+            onDelete={onDelete}
+            highlight={highlight}
+            folderTag={folderTag}
+          />
         );
       })}
+    </div>
+  );
+}
+
+function NoteRow({
+  note,
+  selected,
+  onSelect,
+  onDelete,
+  highlight,
+  folderTag,
+}: {
+  note: NoteWithRelations;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+  highlight?: string;
+  folderTag?: string;
+}) {
+  const snippet = extractPlainText(note.content).slice(0, 80);
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: note.id,
+    data: { type: "note" },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform) }}
+      {...listeners}
+      {...attributes}
+      className={cn(
+        "group relative rounded-xl transition-colors hover:bg-accent",
+        selected && "bg-accent",
+        isDragging && "z-10 opacity-50"
+      )}
+    >
+      <button
+        onClick={() => onSelect(note.id)}
+        className="block w-full rounded-xl px-3 py-2 pr-9 text-left"
+      >
+        <div className="flex items-center gap-1.5">
+          {note.pinned && <Pin className="size-3 shrink-0 fill-current text-primary" />}
+          {note.isMeeting && <Users className="size-3 shrink-0 text-muted-foreground" />}
+          <span className="truncate text-sm font-medium text-foreground">
+            <Highlighted text={note.title} query={highlight} />
+          </span>
+          {folderTag && (
+            <span className="ml-auto shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {folderTag}
+            </span>
+          )}
+        </div>
+        {snippet && (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            <Highlighted text={snippet} query={highlight} />
+          </p>
+        )}
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(note.id);
+        }}
+        aria-label={`Delete ${note.title}`}
+        title="Delete note"
+        className="absolute right-1.5 top-1.5 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
     </div>
   );
 }
