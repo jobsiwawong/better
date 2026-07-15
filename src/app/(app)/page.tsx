@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { quoteForNow } from "@/lib/quotes";
-import { Mascot } from "@/components/today/mascot";
+import { DailyMonster } from "@/components/monsters";
+import { Assistant } from "@/components/today/assistant";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -55,8 +56,10 @@ export default async function TodayPage() {
             &ldquo;{quote}&rdquo;
           </p>
         </div>
-        <Mascot className="hidden shrink-0 sm:block" />
+        <DailyMonster seed={0} size={112} className="hidden shrink-0 sm:block" />
       </div>
+
+      <Assistant />
 
       <TaskGroup
         title="Overdue"

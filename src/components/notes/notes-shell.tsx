@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { FileText, Plus, Search, Users } from "lucide-react";
+import { DailyMonster } from "@/components/monsters";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -250,7 +251,7 @@ export function NotesShell({
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-            <FileText className="size-8 opacity-40" />
+            <DailyMonster seed={1} size={104} />
             <p className="text-sm">Select a note, or create a new one.</p>
             <Button size="sm" className="gap-1.5 rounded-full" onClick={() => handleNewNote(false)}>
               <Plus className="size-3.5" /> New note

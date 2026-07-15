@@ -1,6 +1,7 @@
 "use client";
 
 import { CreditCard, Paperclip, Wallet } from "lucide-react";
+import { DailyMonster } from "@/components/monsters";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/expenses/status-pill";
 import {
@@ -30,9 +31,10 @@ export function ExpenseTable({
 }) {
   if (expenses.length === 0) {
     return (
-      <p className="px-4 py-6 text-sm text-muted-foreground">
-        No expenses yet.
-      </p>
+      <div className="flex items-center gap-3 px-4 py-4">
+        <DailyMonster seed={3} size={56} />
+        <p className="text-sm text-muted-foreground">No expenses yet.</p>
+      </div>
     );
   }
 

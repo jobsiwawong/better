@@ -1,17 +1,21 @@
 import { getWeeklyDigest } from "@/lib/queries/digest";
+import { DailyMonster } from "@/components/monsters";
 
 export default async function DigestPage() {
   const { doneThisWeek, overdue, upcoming, notesThisWeek } = await getWeeklyDigest();
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-8 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Weekly digest</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          This week: {doneThisWeek.length} done, {overdue.length} overdue,{" "}
-          {upcoming.length} upcoming, {notesThisWeek} note
-          {notesThisWeek === 1 ? "" : "s"} added.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Weekly digest</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This week: {doneThisWeek.length} done, {overdue.length} overdue,{" "}
+            {upcoming.length} upcoming, {notesThisWeek} note
+            {notesThisWeek === 1 ? "" : "s"} added.
+          </p>
+        </div>
+        <DailyMonster seed={2} size={88} className="hidden shrink-0 sm:block" />
       </div>
 
       <Section title="Done this week" tone="done" items={doneThisWeek} emptyLabel="Nothing completed yet this week." />
