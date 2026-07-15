@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ExportMenu } from "@/components/app-shell/export-menu";
 import { ChangePasscodeDialog } from "@/components/app-shell/change-passcode-dialog";
+import { AssistantKeyDialog } from "@/components/app-shell/assistant-key-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -50,6 +51,7 @@ export function Topbar() {
           <TooltipContent>Quick add (⌘N)</TooltipContent>
         </Tooltip>
         <ExportMenu />
+        <AssistantKeyDialog />
         <ChangePasscodeDialog />
         <ThemeToggle />
         <Tooltip>

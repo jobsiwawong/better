@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildWorkspaceContext } from "@/lib/assistant-context";
+import { db } from "@/lib/db";
+
+/** Key from Settings (entered in-app) takes priority over the env var. */
+async function resolveApiKey(): Promise<string | undefined> {
+  const settings = await db.settings.findUnique({
+    where: { id: "singleton" },
+    select: { anthropicApiKey: true },
+  });
+  return settings?.anthropicApiKey?.trim() || process.env.ANTHROPIC_API_KEY?.trim() || undefined;
+}
 
 // Model toggle exposed in the UI. Both run at high effort with adaptive
 // thinking; Opus is the deeper/more capable option, Sonnet the faster one.
@@ -20,11 +30,12 @@ Guidelines:
 - Be concise and well-structured. Use Markdown headings, bullet lists, and bold sparingly but effectively. The output may be exported as-is.`;
 
 export async function POST(request: NextRequest) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = await resolveApiKey();
+  if (!apiKey) {
     return NextResponse.json(
       {
         error:
-          "No Anthropic API key configured. Add ANTHROPIC_API_KEY=sk-ant-… to better/.env and restart the dev server.",
+          "No Anthropic API key set yet. Click the ✨ button in the top bar to add one.",
       },
       { status: 503 }
     );
@@ -51,7 +62,7 @@ export async function POST(request: NextRequest) {
     day: "numeric",
   });
 
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey });
   const stream = client.messages.stream({
     model: MODELS[modelKey],
     max_tokens: 64000,
