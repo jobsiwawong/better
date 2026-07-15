@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { markdownToTiptap } from "@/lib/markdown-to-tiptap";
 
 export async function createNote(opts?: {
   folderId?: string | null;
@@ -49,6 +50,18 @@ export async function updateNote(id: string, patch: NoteUpdateInput) {
   }
 
   const note = await db.note.update({ where: { id }, data });
+  revalidatePath("/notes");
+  return note;
+}
+
+/** Save an assistant-produced Markdown draft as a new note. */
+export async function saveAssistantDraft(title: string, markdown: string) {
+  const note = await db.note.create({
+    data: {
+      title: title.trim() || "Assistant draft",
+      content: markdownToTiptap(markdown),
+    },
+  });
   revalidatePath("/notes");
   return note;
 }
