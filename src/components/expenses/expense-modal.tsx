@@ -157,8 +157,8 @@ export function ExpenseModal({
       return;
     }
     try {
-      const dataUrl = await uploadImage(file);
-      await addReceipt(expense.id, dataUrl);
+      const url = await uploadImage(file, "receipts");
+      await addReceipt(expense.id, url);
       setReceipts(await listReceipts(expense.id));
       refresh();
     } catch (err) {
