@@ -200,7 +200,7 @@ export function ExpenseModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[85vh] w-full sm:max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="sr-only">Edit expense</DialogTitle>
           <Input
@@ -215,7 +215,7 @@ export function ExpenseModal({
           />
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="expense-date">Date</Label>
             <Input
