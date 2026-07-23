@@ -21,8 +21,8 @@ import {
   ExpenseFilterBar,
   type ExpenseFilters,
 } from "@/components/expenses/expense-filter-bar";
-import { updateExpense } from "@/app/actions/expenses";
-import { pushUndo } from "@/lib/undo-store";
+import { updateExpense, deleteExpense, restoreExpense } from "@/app/actions/expenses";
+import { pushUndo, undoSpecific } from "@/lib/undo-store";
 import {
   STATUS_META,
   type ExpenseStatusValue,
@@ -81,6 +81,20 @@ export function ExpensesShell({
       redo: () => updateExpense(expense.id, { status }).then(refresh),
     });
     toast(`${expense.merchant}: ${STATUS_META[status].label}`);
+  };
+
+  const handleDeleteExpense = async (expense: ExpenseRow) => {
+    const snapshot = await deleteExpense(expense.id);
+    if (openExpenseId === expense.id) setOpenExpenseId(null);
+    refresh();
+    const entry = pushUndo({
+      label: `delete expense "${expense.merchant}"`,
+      undo: () => restoreExpense(snapshot).then(refresh),
+      redo: () => deleteExpense(expense.id).then(refresh),
+    });
+    toast(`Deleted "${expense.merchant}"`, {
+      action: { label: "Undo", onClick: () => undoSpecific(entry) },
+    });
   };
 
   const visibleTrips =
@@ -144,6 +158,7 @@ export function ExpensesShell({
             expenses={applyExpenseFilters(trip.expenses, filters)}
             onOpenExpense={(e) => setOpenExpenseId(e.id)}
             onStatusChange={handleStatusChange}
+            onDeleteExpense={handleDeleteExpense}
             onEditTrip={(t) => {
               setEditingTrip(t);
               setTripDialogOpen(true);
@@ -157,6 +172,7 @@ export function ExpensesShell({
             expenses={applyExpenseFilters(unassigned, filters)}
             onOpenExpense={(e) => setOpenExpenseId(e.id)}
             onStatusChange={handleStatusChange}
+            onDeleteExpense={handleDeleteExpense}
           />
         )}
       </div>

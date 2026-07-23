@@ -1,8 +1,22 @@
 "use client";
 
-import { CreditCard, Paperclip, Wallet } from "lucide-react";
+import {
+  CreditCard,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 import { DailyMonster } from "@/components/monsters";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatusPill } from "@/components/expenses/status-pill";
 import {
   formatMinor,
@@ -18,16 +32,18 @@ function formatDate(date: Date | string) {
 }
 
 const GRID =
-  "grid grid-cols-[72px_minmax(160px,1fr)_130px_150px_36px_40px] items-center gap-3";
+  "grid grid-cols-[72px_minmax(160px,1fr)_130px_150px_36px_40px_40px] items-center gap-3";
 
 export function ExpenseTable({
   expenses,
   onOpen,
   onStatusChange,
+  onDelete,
 }: {
   expenses: ExpenseRow[];
   onOpen: (expense: ExpenseRow) => void;
   onStatusChange: (expense: ExpenseRow, status: ExpenseStatusValue) => void;
+  onDelete: (expense: ExpenseRow) => void;
 }) {
   if (expenses.length === 0) {
     return (
@@ -40,7 +56,7 @@ export function ExpenseTable({
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[620px]">
+      <div className="min-w-[660px]">
         <div
           className={cn(
             GRID,
@@ -51,6 +67,7 @@ export function ExpenseTable({
           <span>Merchant</span>
           <span className="text-right">Amount</span>
           <span>Status</span>
+          <span />
           <span />
           <span />
         </div>
@@ -127,6 +144,34 @@ export function ExpenseTable({
                   {e.receipts.length}
                 </>
               )}
+            </span>
+            <span
+              className="flex items-center justify-center"
+              onClick={(ev) => ev.stopPropagation()}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    aria-label={`Options for ${e.merchant}`}
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => onOpen(e)}>
+                    <Pencil className="size-3.5" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => onDelete(e)}
+                  >
+                    <Trash2 className="size-3.5" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </span>
           </div>
         ))}

@@ -36,6 +36,7 @@ export function TripSection({
   expenses,
   onOpenExpense,
   onStatusChange,
+  onDeleteExpense,
   onEditTrip,
   onTripDeleted,
 }: {
@@ -43,6 +44,7 @@ export function TripSection({
   expenses: ExpenseRow[];
   onOpenExpense: (expense: ExpenseRow) => void;
   onStatusChange: (expense: ExpenseRow, status: ExpenseStatusValue) => void;
+  onDeleteExpense: (expense: ExpenseRow) => void;
   onEditTrip?: (trip: TripWithExpenses) => void;
   onTripDeleted?: () => void;
 }) {
@@ -119,6 +121,7 @@ export function TripSection({
         expenses={expenses}
         onOpen={onOpenExpense}
         onStatusChange={onStatusChange}
+        onDelete={onDeleteExpense}
       />
       <div className="border-t border-border/60">
         <QuickAddExpense
