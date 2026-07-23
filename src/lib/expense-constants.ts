@@ -1,7 +1,7 @@
 export const CURRENCIES = ["USD", "EUR", "THB", "AED"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
-export const HOME_CURRENCIES = ["USD", "EUR", "THB"] as const;
+export const HOME_CURRENCIES = ["USD", "EUR", "THB", "AED"] as const;
 export type HomeCurrency = (typeof HOME_CURRENCIES)[number];
 
 export const UNASSIGNED_HOME_CURRENCY: HomeCurrency = "USD";
