@@ -6,6 +6,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isDoneColumnName } from "@/lib/done-column";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +17,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TaskCard } from "@/components/board/task-card";
 import type { BoardColumn, BoardChildTask, BoardTask } from "@/lib/queries/board";
+
+// A distinct accent per column so To-do / In Progress / Done read
+// differently at a glance. Done columns are always green; the rest cycle by
+// position. Mid-tones chosen to stay legible in both light and dark themes.
+const COLUMN_ACCENTS = ["#6a94a8", "#d4a24c", "#8b7bb0", "#c17a5c", "#5a9e8f"];
+const DONE_ACCENT = "#3f8f5c";
 
 export function KanbanColumn({
   column,
@@ -75,13 +82,20 @@ export function KanbanColumn({
     if (name.trim() && name.trim() !== column.name) onRename(name.trim());
   };
 
+  const accent = isDoneColumnName(column.name)
+    ? DONE_ACCENT
+    : COLUMN_ACCENTS[column.order % COLUMN_ACCENTS.length];
+
   return (
     <div
       ref={setSortableRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className="flex h-full w-72 shrink-0 flex-col"
     >
-      <div className="mb-2 flex items-center gap-1.5 px-1">
+      <div
+        className="mb-2 flex items-center gap-1.5 border-b-2 px-1 pb-1.5"
+        style={{ borderBottomColor: `${accent}66` }}
+      >
         <button
           {...attributes}
           {...listeners}
@@ -90,6 +104,11 @@ export function KanbanColumn({
         >
           <GripVertical className="size-4" />
         </button>
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: accent }}
+        />
         {editingName ? (
           <Input
             autoFocus
@@ -107,7 +126,12 @@ export function KanbanColumn({
             {column.name}
           </button>
         )}
-        <span className="text-xs text-muted-foreground">{tasks.length}</span>
+        <span
+          className="rounded-full px-1.5 text-xs font-medium tabular-nums"
+          style={{ color: accent, backgroundColor: `${accent}1f` }}
+        >
+          {tasks.length}
+        </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-6 rounded-lg">

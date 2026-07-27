@@ -30,6 +30,7 @@ import type { BoardColumn, BoardTask } from "@/lib/queries/board";
 import {
   addAttachment,
   addSubtask,
+  updateSubtask,
   archiveTask,
   completeTask,
   deleteSubtask,
@@ -396,13 +397,32 @@ export function TaskModal({
                   checked={s.completed}
                   onCheckedChange={() => toggleSubtask(s.id).then(refresh)}
                 />
-                <span
+                <Input
+                  key={s.title}
+                  defaultValue={s.title}
+                  aria-label="Subtask title"
                   className={
-                    s.completed ? "flex-1 text-sm text-muted-foreground line-through" : "flex-1 text-sm"
+                    "h-8 flex-1 border-none bg-transparent px-1 text-sm shadow-none hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:ring-0 " +
+                    (s.completed ? "text-muted-foreground line-through" : "")
                   }
-                >
-                  {s.title}
-                </span>
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
+                  onBlur={(e) => {
+                    const next = e.target.value.trim();
+                    if (!next || next === s.title) {
+                      e.target.value = s.title;
+                      return;
+                    }
+                    const prev = s.title;
+                    updateSubtask(s.id, next).then(refresh);
+                    pushUndo({
+                      label: `rename subtask "${prev}"`,
+                      undo: () => updateSubtask(s.id, prev).then(refresh),
+                      redo: () => updateSubtask(s.id, next).then(refresh),
+                    });
+                  }}
+                />
                 <button
                   onClick={() => {
                     deleteSubtask(s.id).then(refresh);

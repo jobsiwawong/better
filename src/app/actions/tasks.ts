@@ -277,6 +277,13 @@ export async function toggleSubtask(id: string) {
   revalidatePath("/board");
 }
 
+export async function updateSubtask(id: string, title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) throw new Error("Title is required");
+  await db.subtask.update({ where: { id }, data: { title: trimmed } });
+  revalidatePath("/board");
+}
+
 export async function deleteSubtask(id: string) {
   await db.subtask.delete({ where: { id } });
   revalidatePath("/board");
