@@ -6,7 +6,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isDoneColumnName } from "@/lib/done-column";
+import { columnAccent } from "@/lib/column-accent";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,12 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TaskCard } from "@/components/board/task-card";
 import type { BoardColumn, BoardChildTask, BoardTask } from "@/lib/queries/board";
-
-// A distinct accent per column so To-do / In Progress / Done read
-// differently at a glance. Done columns are always green; the rest cycle by
-// position. Mid-tones chosen to stay legible in both light and dark themes.
-const COLUMN_ACCENTS = ["#6a94a8", "#d4a24c", "#8b7bb0", "#c17a5c", "#5a9e8f"];
-const DONE_ACCENT = "#3f8f5c";
 
 export function KanbanColumn({
   column,
@@ -82,9 +76,7 @@ export function KanbanColumn({
     if (name.trim() && name.trim() !== column.name) onRename(name.trim());
   };
 
-  const accent = isDoneColumnName(column.name)
-    ? DONE_ACCENT
-    : COLUMN_ACCENTS[column.order % COLUMN_ACCENTS.length];
+  const accent = columnAccent(column.name, column.order);
 
   return (
     <div

@@ -18,11 +18,23 @@ import {
 import type { BoardData, BoardColumn } from "@/lib/queries/board";
 import { useTaskUrlParam } from "@/lib/use-task-url-param";
 import { isDoneColumnName } from "@/lib/done-column";
+import { columnAccent } from "@/lib/column-accent";
 
 type SortField = "title" | "owner" | "priority" | "dueDate" | "status";
 type SortDir = "asc" | "desc";
 
 const PRIORITY_RANK: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+// Priority as an urgency badge: High shouts (solid red), Medium is a warm
+// amber tint, Low stays quiet grey. Legible in light and dark themes.
+const PRIORITY_META: Record<string, { label: string; className: string }> = {
+  HIGH: { label: "High", className: "bg-[#cf5b4e] text-white" },
+  MEDIUM: {
+    label: "Medium",
+    className: "bg-[#d4a24c]/15 text-[#a97b2e] dark:text-[#d4a24c]",
+  },
+  LOW: { label: "Low", className: "bg-muted text-muted-foreground" },
+};
 
 function isOverdue(task: { dueDate: Date | string | null }) {
   if (!task.dueDate) return false;
@@ -195,8 +207,20 @@ export function TaskListView({
                       ))}
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-muted-foreground">
-                    {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
+                  <td className="px-3 py-3">
+                    {(() => {
+                      const meta = PRIORITY_META[task.priority] ?? PRIORITY_META.LOW;
+                      return (
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            meta.className
+                          )}
+                        >
+                          {meta.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td
                     className={cn(
@@ -213,16 +237,18 @@ export function TaskListView({
                   </td>
                   <td className="rounded-r-2xl px-3 py-3">
                     {(() => {
-                      const name = columnById.get(task.columnId)?.name ?? "";
+                      const col = columnById.get(task.columnId);
+                      const name = col?.name ?? "";
                       const done = isDoneColumnName(name);
+                      const accent = columnAccent(name, col?.order ?? 0);
                       return (
                         <span
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          style={
                             done
-                              ? "bg-[#3f8f5c] text-white shadow-sm"
-                              : "bg-muted font-medium text-muted-foreground"
-                          )}
+                              ? { backgroundColor: "#3f8f5c", color: "#fff" }
+                              : { backgroundColor: `${accent}22`, color: accent }
+                          }
                         >
                           {done && <Check className="size-3" strokeWidth={3} />}
                           {name}
