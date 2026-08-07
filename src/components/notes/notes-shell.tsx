@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   DndContext,
   PointerSensor,
@@ -35,14 +35,18 @@ export function NotesShell({
   folders,
   notes,
   tags,
-  selectedNoteId,
 }: {
   folders: NotesData["folders"];
   notes: NotesData["notes"];
   tags: NotesData["tags"];
-  selectedNoteId: string | null;
 }) {
   const router = useRouter();
+  // Read the open note from the URL so this shell can live in the shared
+  // notes layout and NOT re-mount when the note route changes — that
+  // re-mount is what used to reset the folder filter back to "All notes".
+  const params = useParams();
+  const selectedNoteId =
+    typeof params.noteId === "string" ? params.noteId : null;
   const [selectedFolderId, setSelectedFolderId] = React.useState<string | null | "all">(
     "all"
   );

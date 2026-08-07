@@ -1,10 +1,5 @@
-import { getNotesData } from "@/lib/queries/notes";
-import { NotesShell } from "@/components/notes/notes-shell";
-
-export default async function NotesPage() {
-  const { folders, notes, tags } = await getNotesData();
-
-  return (
-    <NotesShell folders={folders} notes={notes} tags={tags} selectedNoteId={null} />
-  );
+// The notes UI is rendered by the shared layout (notes/layout.tsx); this
+// page exists only to make /notes a valid route.
+export default function NotesPage() {
+  return null;
 }

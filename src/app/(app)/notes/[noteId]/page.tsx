@@ -1,15 +1,6 @@
-import { getNotesData } from "@/lib/queries/notes";
-import { NotesShell } from "@/components/notes/notes-shell";
-
-export default async function NoteDetailPage({
-  params,
-}: {
-  params: Promise<{ noteId: string }>;
-}) {
-  const { noteId } = await params;
-  const { folders, notes, tags } = await getNotesData();
-
-  return (
-    <NotesShell folders={folders} notes={notes} tags={tags} selectedNoteId={noteId} />
-  );
+// The notes UI is rendered by the shared layout (notes/layout.tsx), which
+// reads the open note id from the URL. This page exists only to make
+// /notes/[noteId] a valid route.
+export default function NoteDetailPage() {
+  return null;
 }
