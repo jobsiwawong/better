@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { addDays, addWeeks, addMonths, startOfDay } from "date-fns";
 import type { Priority, RecurrenceType } from "@/generated/prisma/enums";
 import { isDoneColumnName } from "@/lib/done-column";
 
@@ -138,6 +139,108 @@ async function topOrderOf(columnId: string) {
   return (min._min.order ?? 0) - 1;
 }
 
+// The first column that doesn't read as "done" — where a fresh recurring
+// occurrence (or an un-completed card) belongs.
+async function firstActiveColumn() {
+  const columns = await db.column.findMany({ orderBy: { order: "asc" } });
+  return columns.find((c) => !isDoneColumnName(c.name)) ?? columns[0] ?? null;
+}
+
+// The next due date for a recurring task, stepping from `base` by the interval
+// and rolling forward past today if the base is already overdue.
+function computeNextDue(
+  base: Date,
+  type: RecurrenceType,
+  interval: number
+): Date {
+  const n = interval > 0 ? interval : 1;
+  const step = (d: Date) =>
+    type === "DAILY"
+      ? addDays(d, n)
+      : type === "WEEKLY"
+        ? addWeeks(d, n)
+        : addMonths(d, n);
+  let next = step(base);
+  const today = startOfDay(new Date());
+  let guard = 0;
+  while (next < today && guard++ < 500) next = step(next);
+  return next;
+}
+
+// When a recurring top-level task is completed, drop a fresh copy of it into
+// the first active column, dated the next occurrence. Best-effort: never let a
+// recurrence hiccup break the completion itself.
+async function spawnNextRecurrence(taskId: string) {
+  try {
+    const task = await db.task.findUnique({
+      where: { id: taskId },
+      include: {
+        tags: { select: { tagId: true } },
+        owners: { select: { ownerId: true } },
+        subtasks: { select: { title: true, order: true } },
+      },
+    });
+    if (!task || task.parentId || task.recurrenceType === "NONE") return;
+
+    const base = task.dueDate ?? new Date();
+    const nextDue = computeNextDue(
+      base,
+      task.recurrenceType,
+      task.recurrenceInterval ?? 1
+    );
+    if (task.recurrenceEndDate && nextDue > task.recurrenceEndDate) return;
+
+    // Don't duplicate the next occurrence if it already exists and is open
+    // (e.g. the user un-completes then re-completes this card).
+    const existing = await db.task.findFirst({
+      where: {
+        title: task.title,
+        recurrenceType: task.recurrenceType,
+        archived: false,
+        completed: false,
+        parentId: null,
+        dueDate: nextDue,
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const target = await firstActiveColumn();
+    if (!target) return;
+
+    await db.task.create({
+      data: {
+        title: task.title,
+        description: task.description,
+        dueDate: nextDue,
+        dueTime: task.dueTime,
+        priority: task.priority,
+        columnId: target.id,
+        order: await topOrderOf(target.id),
+        recurrenceType: task.recurrenceType,
+        recurrenceInterval: task.recurrenceInterval,
+        recurrenceEndDate: task.recurrenceEndDate,
+        tags: task.tags.length
+          ? { create: task.tags.map((t) => ({ tagId: t.tagId })) }
+          : undefined,
+        owners: task.owners.length
+          ? { create: task.owners.map((o) => ({ ownerId: o.ownerId })) }
+          : undefined,
+        subtasks: task.subtasks.length
+          ? {
+              create: task.subtasks.map((s) => ({
+                title: s.title,
+                order: s.order,
+              })),
+            }
+          : undefined,
+      },
+    });
+  } catch (err) {
+    console.error("spawnNextRecurrence failed", err);
+  }
+}
+
 export async function moveTask(id: string, columnId: string, order: number) {
   const [task, doneCol] = await Promise.all([
     db.task.findUniqueOrThrow({
@@ -150,11 +253,13 @@ export async function moveTask(id: string, columnId: string, order: number) {
   const data: Record<string, unknown> = { columnId, order };
   // Moving a top-level card into the done column completes it; moving it out
   // marks it active again. completedAt is only stamped on the transition.
+  let justCompleted = false;
   if (!task.parentId) {
     const enteringDone = doneCol?.id === columnId;
     if (enteringDone && !task.completed) {
       data.completed = true;
       data.completedAt = new Date();
+      justCompleted = true;
     } else if (!enteringDone && task.completed) {
       data.completed = false;
       data.completedAt = null;
@@ -162,6 +267,7 @@ export async function moveTask(id: string, columnId: string, order: number) {
   }
 
   await db.task.update({ where: { id }, data });
+  if (justCompleted) await spawnNextRecurrence(id);
   revalidateBoardPages();
 }
 
@@ -198,6 +304,7 @@ export async function completeTask(id: string) {
   }
 
   await db.task.update({ where: { id }, data });
+  await spawnNextRecurrence(id);
   revalidateBoardPages();
 }
 
