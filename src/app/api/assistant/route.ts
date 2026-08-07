@@ -41,17 +41,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let prompt: string;
+  type ChatMessage = { role: "user" | "assistant"; content: string };
+  let messages: ChatMessage[];
   let modelKey: ModelKey;
   try {
     const body = await request.json();
-    prompt = String(body.prompt ?? "").trim();
     modelKey = body.model === "opus" ? "opus" : "sonnet";
+    if (Array.isArray(body.messages)) {
+      // Full conversation history from the client.
+      messages = body.messages
+        .filter(
+          (m: unknown): m is ChatMessage =>
+            !!m &&
+            (((m as ChatMessage).role === "user") ||
+              (m as ChatMessage).role === "assistant") &&
+            typeof (m as ChatMessage).content === "string" &&
+            (m as ChatMessage).content.trim().length > 0
+        )
+        .slice(-40) // cap history length
+        .map((m: ChatMessage) => ({ role: m.role, content: m.content }));
+    } else {
+      // Backwards-compatible single prompt.
+      const prompt = String(body.prompt ?? "").trim();
+      messages = prompt ? [{ role: "user", content: prompt }] : [];
+    }
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-  if (!prompt) {
-    return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+  if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
+    return NextResponse.json(
+      { error: "A user message is required" },
+      { status: 400 }
+    );
   }
 
   const workspace = await buildWorkspaceContext();
@@ -75,7 +96,7 @@ export async function POST(request: NextRequest) {
         text: `Today is ${today}.\n\n<workspace>\n${workspace}\n</workspace>`,
       },
     ],
-    messages: [{ role: "user", content: prompt }],
+    messages,
   });
 
   const encoder = new TextEncoder();
