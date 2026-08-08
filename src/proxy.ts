@@ -8,8 +8,14 @@ export async function proxy(request: NextRequest) {
 
   // The MCP endpoint authenticates itself with a secret path segment, so it
   // must bypass the passcode/session wall (external clients like Claude have
-  // no session cookie).
-  if (pathname.startsWith("/api/mcp")) {
+  // no session cookie). The /.well-known/* OAuth-discovery paths must also
+  // bypass it so they return a clean 404 — that 404 is how Claude concludes
+  // the server is authless and connects, instead of redirecting to /login
+  // (which Claude misreads as an OAuth sign-in service).
+  if (
+    pathname.startsWith("/api/mcp") ||
+    pathname.startsWith("/.well-known")
+  ) {
     return NextResponse.next();
   }
 
