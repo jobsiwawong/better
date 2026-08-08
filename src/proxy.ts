@@ -5,6 +5,14 @@ import { sessionOptions, type SessionData } from "@/lib/session";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // The MCP endpoint authenticates itself with a secret path segment, so it
+  // must bypass the passcode/session wall (external clients like Claude have
+  // no session cookie).
+  if (pathname.startsWith("/api/mcp")) {
+    return NextResponse.next();
+  }
+
   const isLoginRoute = pathname.startsWith("/login");
 
   const cookie = request.cookies.get(sessionOptions.cookieName)?.value;
