@@ -19,6 +19,22 @@ Set all of these in **Vercel → Project → Settings → Environment Variables*
 `SUPABASE_STORAGE_BUCKET` is optional (defaults to `uploads`). The bucket is
 created automatically on the first image upload.
 
+`MCP_SECRET` is optional — set it only if you use the Claude connector (see
+below). It's a long random string that guards the MCP endpoint.
+
+## Claude connector (MCP)
+
+Better exposes an MCP server so Claude (claude.ai custom connector, Pro/Max/
+Team/Enterprise) can read and write your workspace. To enable it:
+
+1. Set `MCP_SECRET` in Vercel to a long random string, and redeploy.
+2. In Claude: Settings → Connectors → Add custom connector, and paste:
+   `https://<your-app>.vercel.app/api/mcp/<MCP_SECRET>`
+
+The secret in the URL is the only thing guarding read/write access, so keep
+that URL private. Tools: get_today, list_tasks, search_notes, get_note,
+list_notes, create_task, update_task, complete_task, create_note.
+
 The Anthropic API key is **not** an env var — it is entered inside the app
 (✨ button in the top bar) and stored in the database.
 
