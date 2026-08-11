@@ -114,6 +114,38 @@ export function TaskModal({
     updateTask(task.id, patch).then(refresh);
   };
 
+  // Description edits are debounced and flushed on close/unmount, so a
+  // per-keystroke save can't race the editor (which dropped fast-typed
+  // characters) and closing the modal never loses the last edit.
+  const pendingDescRef = React.useRef<string | null>(null);
+  const descTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushDescription = React.useCallback(() => {
+    if (descTimerRef.current) {
+      clearTimeout(descTimerRef.current);
+      descTimerRef.current = null;
+    }
+    if (pendingDescRef.current !== null) {
+      const desc = pendingDescRef.current;
+      pendingDescRef.current = null;
+      updateTask(task.id, { description: desc }).then(() => router.refresh());
+    }
+  }, [task.id, router]);
+
+  // Flush any pending description when the modal unmounts or switches tasks.
+  React.useEffect(() => flushDescription, [flushDescription]);
+
+  const handleDescriptionChange = (json: object) => {
+    pendingDescRef.current = JSON.stringify(json);
+    if (descTimerRef.current) clearTimeout(descTimerRef.current);
+    descTimerRef.current = setTimeout(flushDescription, 700);
+  };
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next) flushDescription();
+    onOpenChange(next);
+  };
+
   // Commit a field change and register it on the global ⌘Z stack.
   function undoableField<T>(
     label: string,
@@ -147,8 +179,8 @@ export function TaskModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[85vh] w-full sm:max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="sr-only">Edit task</DialogTitle>
         </DialogHeader>
@@ -163,7 +195,7 @@ export function TaskModal({
 
         <RichTextEditor
           content={task.description}
-          onChange={(json) => commitField({ description: JSON.stringify(json) })}
+          onChange={handleDescriptionChange}
           placeholder="Add a description…"
           variant="basic"
         />

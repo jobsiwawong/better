@@ -159,6 +159,18 @@
   margin: 0;
 }
 
+/* Bullet nesting markers: dot, then dash, then circle — so sub-bullets read
+   as a clear dot-and-dash outline. Task lists (checkboxes) are excluded. */
+.ProseMirror ul:not([data-type="taskList"]) {
+  list-style-type: disc;
+}
+.ProseMirror ul:not([data-type="taskList"]) ul {
+  list-style-type: "–  ";
+}
+.ProseMirror ul:not([data-type="taskList"]) ul ul {
+  list-style-type: circle;
+}
+
 /* Tables: visible borders, header shading, selection + drag-to-resize. */
 .ProseMirror .tableWrapper {
   overflow-x: auto;

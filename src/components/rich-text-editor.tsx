@@ -16,6 +16,8 @@ import {
   CheckSquare,
   Columns3,
   ImagePlus,
+  IndentDecrease,
+  IndentIncrease,
   Italic,
   List,
   ListOrdered,
@@ -139,7 +141,26 @@ function Toolbar({
   variant: "basic" | "full";
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Re-render the toolbar on every selection/transaction so the active
+  // states and the contextual table controls always reflect the cursor
+  // (the table bar used to appear only intermittently).
+  const [, forceUpdate] = React.useReducer((n: number) => n + 1, 0);
+  React.useEffect(() => {
+    const handle = () => forceUpdate();
+    editor.on("selectionUpdate", handle);
+    editor.on("transaction", handle);
+    return () => {
+      editor.off("selectionUpdate", handle);
+      editor.off("transaction", handle);
+    };
+  }, [editor]);
+
   const inTable = editor.isActive("table");
+  const inList =
+    editor.isActive("bulletList") ||
+    editor.isActive("orderedList") ||
+    editor.isActive("listItem");
 
   const insertImages = async (files: FileList | null) => {
     if (!files) return;
@@ -193,6 +214,24 @@ function Toolbar({
       >
         <ListOrdered className="size-3.5" />
       </ToolbarButton>
+      {inList && (
+        <>
+          <ToolbarButton
+            active={false}
+            onClick={() => editor.chain().focus().sinkListItem("listItem").run()}
+            label="Indent (sub-item)"
+          >
+            <IndentIncrease className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={false}
+            onClick={() => editor.chain().focus().liftListItem("listItem").run()}
+            label="Outdent"
+          >
+            <IndentDecrease className="size-3.5" />
+          </ToolbarButton>
+        </>
+      )}
       {variant === "full" && (
         <>
           <Separator orientation="vertical" className="mx-1 h-4" />
