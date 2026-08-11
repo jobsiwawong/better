@@ -170,6 +170,11 @@
 .ProseMirror ul:not([data-type="taskList"]) ul ul {
   list-style-type: circle;
 }
+/* Native decimal markers so an ordered list's `start` attribute is honored
+   (Continue-from-above / Start-at-N in the editor). */
+.ProseMirror ol {
+  list-style-type: decimal;
+}
 
 /* Tables: visible borders, header shading, selection + drag-to-resize. */
 .ProseMirror .tableWrapper {

@@ -157,10 +157,46 @@ function Toolbar({
   }, [editor]);
 
   const inTable = editor.isActive("table");
+  const inOrderedList = editor.isActive("orderedList");
   const inList =
-    editor.isActive("bulletList") ||
-    editor.isActive("orderedList") ||
-    editor.isActive("listItem");
+    editor.isActive("bulletList") || inOrderedList || editor.isActive("listItem");
+  const orderedStart = Number(editor.getAttributes("orderedList").start ?? 1);
+
+  const setStart = (n: number) => {
+    if (!Number.isFinite(n) || n < 1) return;
+    editor
+      .chain()
+      .focus()
+      .updateAttributes("orderedList", { start: Math.floor(n) })
+      .run();
+  };
+
+  // Continue numbering from the nearest ordered list earlier in the document
+  // (numbering restarts at 1 whenever a table or paragraph splits a list).
+  const continueNumbering = () => {
+    const { state } = editor;
+    const $from = state.selection.$from;
+    let curPos = -1;
+    for (let d = $from.depth; d > 0; d--) {
+      if ($from.node(d).type.name === "orderedList") {
+        curPos = $from.before(d);
+        break;
+      }
+    }
+    if (curPos < 0) return;
+    const prevLists: { start: number; count: number }[] = [];
+    state.doc.descendants((node, pos) => {
+      if (pos < curPos && node.type.name === "orderedList") {
+        prevLists.push({
+          start: Number(node.attrs.start ?? 1),
+          count: node.childCount,
+        });
+      }
+    });
+    const prev = prevLists[prevLists.length - 1];
+    if (!prev) return;
+    setStart(prev.start + prev.count);
+  };
 
   const insertImages = async (files: FileList | null) => {
     if (!files) return;
@@ -310,6 +346,24 @@ function Toolbar({
         >
           <Trash2 className="size-3" /> Delete table
         </TableChip>
+      </div>
+    )}
+
+    {inOrderedList && (
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/40 px-2 py-1.5 text-xs">
+        <span className="mr-1 font-medium text-muted-foreground">Numbering:</span>
+        <TableChip onClick={continueNumbering}>Continue from above</TableChip>
+        <TableChip onClick={() => setStart(1)}>Restart at 1</TableChip>
+        <label className="ml-1 flex items-center gap-1 text-muted-foreground">
+          Start at
+          <input
+            type="number"
+            min={1}
+            value={orderedStart}
+            onChange={(e) => setStart(Number(e.target.value))}
+            className="h-6 w-14 rounded-md border border-border bg-background px-1.5 text-foreground"
+          />
+        </label>
       </div>
     )}
     </>
