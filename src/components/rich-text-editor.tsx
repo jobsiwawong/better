@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
@@ -36,6 +37,27 @@ export interface RichTextEditorHandle {
   getJSON: () => object;
 }
 
+// Tab / Shift-Tab indent list items — even inside a table, where the Table
+// extension otherwise steals Tab for cell navigation. High priority so this
+// runs first; it only claims Tab when the cursor is in a list item, otherwise
+// it returns false and Tab falls through to the table's cell navigation.
+const ListTabIndent = Extension.create({
+  name: "listTabIndent",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        if (!this.editor.isActive("listItem")) return false;
+        return this.editor.chain().focus().sinkListItem("listItem").run();
+      },
+      "Shift-Tab": () => {
+        if (!this.editor.isActive("listItem")) return false;
+        return this.editor.chain().focus().liftListItem("listItem").run();
+      },
+    };
+  },
+});
+
 export function RichTextEditor({
   content,
   onChange,
@@ -66,6 +88,7 @@ export function RichTextEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
+      ListTabIndent,
       StarterKit.configure({
         heading: variant === "full" ? { levels: [1, 2, 3] } : false,
         codeBlock: false,
@@ -212,7 +235,7 @@ function Toolbar({
   };
 
   return (
-    <>
+    <div className="sticky top-0 z-20 rounded-t-2xl bg-background">
     <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
       <ToolbarButton
         active={editor.isActive("bold")}
@@ -366,7 +389,7 @@ function Toolbar({
         </label>
       </div>
     )}
-    </>
+    </div>
   );
 }
 

@@ -170,6 +170,12 @@
 .ProseMirror ul:not([data-type="taskList"]) ul ul {
   list-style-type: circle;
 }
+/* Markers (disc, "–" dash, circle, decimals) default to a faint prose grey that
+   the user found hard to see — pin them to the body text color instead. */
+.ProseMirror ul:not([data-type="taskList"]) li::marker,
+.ProseMirror ol li::marker {
+  color: var(--foreground);
+}
 /* Native decimal markers so an ordered list's `start` attribute is honored
    (Continue-from-above / Start-at-N in the editor). */
 .ProseMirror ol {
