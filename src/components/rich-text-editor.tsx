@@ -22,6 +22,7 @@ import {
   Italic,
   List,
   ListOrdered,
+  Minus,
   Rows3,
   Table as TableIcon,
   Trash2,
@@ -93,7 +94,7 @@ export function RichTextEditor({
         heading: variant === "full" ? { levels: [1, 2, 3] } : false,
         codeBlock: false,
         blockquote: variant === "full" ? {} : false,
-        horizontalRule: false,
+        horizontalRule: variant === "full" ? {} : false,
       }),
       Placeholder.configure({ placeholder }),
       ...(variant === "full"
@@ -309,6 +310,13 @@ function Toolbar({
             label="Checklist"
           >
             <CheckSquare className="size-3.5" />
+          </ToolbarButton>
+          <ToolbarButton
+            active={false}
+            onClick={() => editor.chain().focus().setHorizontalRule().run()}
+            label="Partition line"
+          >
+            <Minus className="size-3.5" />
           </ToolbarButton>
           <ToolbarButton
             active={false}
