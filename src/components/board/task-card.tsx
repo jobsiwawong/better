@@ -307,12 +307,13 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Drop-to-nest target: middle band only, so top/bottom edges still reorder. */}
+      {/* Drop-to-nest target: a small central band (middle ~30%) so the larger
+          top/bottom regions are for reordering — nesting has to be deliberate. */}
       {nestActive && (
         <div
           ref={setNestRef}
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-1/4 z-10 flex h-1/2 items-center justify-center rounded-xl border-2 border-dashed border-transparent transition-colors",
+            "pointer-events-none absolute inset-x-6 top-[35%] z-10 flex h-[30%] items-center justify-center rounded-xl border-2 border-dashed border-transparent transition-colors",
             isNestOver && "border-primary bg-primary/10"
           )}
         >
