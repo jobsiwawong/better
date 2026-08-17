@@ -61,28 +61,39 @@ const ListTabIndent = Extension.create({
   },
 });
 
-// Make Cmd/Ctrl + arrows move by WORD (like Option+Arrow) instead of the OS
-// default (jump to line start/end). Uses the native Selection.modify with
-// "word" granularity — same boundaries the OS uses — and lets ProseMirror's
-// DOM-selection observer sync state. Shift variants extend the selection.
-const wordArrow = (alter: "move" | "extend", direction: "left" | "right") => () => {
-  const sel = typeof window !== "undefined" ? window.getSelection() : null;
-  // Selection.modify is supported in all major browsers; bail if ever missing
-  // so native handling applies.
-  if (!sel || typeof sel.modify !== "function") return false;
-  sel.modify(alter, direction, "word");
-  return true;
-};
+// Remap Cmd/Ctrl + arrows to gentler granularities than the OS defaults:
+//   ←/→        move by WORD (not jump to line start/end)
+//   Shift+←/→  extend selection by WORD
+//   Shift+↑/↓  extend selection by LINE (not select to document top/bottom)
+// Plain Cmd+↑/↓ (jump to note top/bottom) is left at the OS default. Uses the native
+// Selection.modify (same boundaries the OS uses) and lets ProseMirror's
+// DOM-selection observer sync state; returns true to suppress the default.
+const nativeMotion =
+  (
+    alter: "move" | "extend",
+    direction: "left" | "right" | "backward" | "forward",
+    granularity: "word" | "line"
+  ) =>
+  () => {
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    // Selection.modify is supported in all major browsers; bail if ever
+    // missing so native handling applies.
+    if (!sel || typeof sel.modify !== "function") return false;
+    sel.modify(alter, direction, granularity);
+    return true;
+  };
 
 const WordwiseArrows = Extension.create({
   name: "wordwiseArrows",
   priority: 1000,
   addKeyboardShortcuts() {
     return {
-      "Mod-ArrowLeft": wordArrow("move", "left"),
-      "Mod-ArrowRight": wordArrow("move", "right"),
-      "Mod-Shift-ArrowLeft": wordArrow("extend", "left"),
-      "Mod-Shift-ArrowRight": wordArrow("extend", "right"),
+      "Mod-ArrowLeft": nativeMotion("move", "left", "word"),
+      "Mod-ArrowRight": nativeMotion("move", "right", "word"),
+      "Mod-Shift-ArrowLeft": nativeMotion("extend", "left", "word"),
+      "Mod-Shift-ArrowRight": nativeMotion("extend", "right", "word"),
+      "Mod-Shift-ArrowUp": nativeMotion("extend", "backward", "line"),
+      "Mod-Shift-ArrowDown": nativeMotion("extend", "forward", "line"),
     };
   },
 });
