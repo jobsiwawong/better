@@ -25,6 +25,8 @@ import {
   Minus,
   Rows3,
   Table as TableIcon,
+  TableCellsMerge,
+  TableCellsSplit,
   Trash2,
   Underline as UnderlineIcon,
   Heading2,
@@ -55,6 +57,32 @@ const ListTabIndent = Extension.create({
         if (!this.editor.isActive("listItem")) return false;
         return this.editor.chain().focus().liftListItem("listItem").run();
       },
+    };
+  },
+});
+
+// Make Cmd/Ctrl + arrows move by WORD (like Option+Arrow) instead of the OS
+// default (jump to line start/end). Uses the native Selection.modify with
+// "word" granularity — same boundaries the OS uses — and lets ProseMirror's
+// DOM-selection observer sync state. Shift variants extend the selection.
+const wordArrow = (alter: "move" | "extend", direction: "left" | "right") => () => {
+  const sel = typeof window !== "undefined" ? window.getSelection() : null;
+  // Selection.modify is supported in all major browsers; bail if ever missing
+  // so native handling applies.
+  if (!sel || typeof sel.modify !== "function") return false;
+  sel.modify(alter, direction, "word");
+  return true;
+};
+
+const WordwiseArrows = Extension.create({
+  name: "wordwiseArrows",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return {
+      "Mod-ArrowLeft": wordArrow("move", "left"),
+      "Mod-ArrowRight": wordArrow("move", "right"),
+      "Mod-Shift-ArrowLeft": wordArrow("extend", "left"),
+      "Mod-Shift-ArrowRight": wordArrow("extend", "right"),
     };
   },
 });
@@ -90,6 +118,7 @@ export function RichTextEditor({
     immediatelyRender: false,
     extensions: [
       ListTabIndent,
+      WordwiseArrows,
       StarterKit.configure({
         heading: variant === "full" ? { levels: [1, 2, 3] } : false,
         codeBlock: false,
@@ -367,6 +396,12 @@ function Toolbar({
         </TableChip>
         <TableChip onClick={() => editor.chain().focus().deleteColumn().run()}>
           <Columns3 className="size-3" /> Delete column
+        </TableChip>
+        <TableChip onClick={() => editor.chain().focus().mergeCells().run()}>
+          <TableCellsMerge className="size-3" /> Merge cells
+        </TableChip>
+        <TableChip onClick={() => editor.chain().focus().splitCell().run()}>
+          <TableCellsSplit className="size-3" /> Split cell
         </TableChip>
         <TableChip onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
           Header row
