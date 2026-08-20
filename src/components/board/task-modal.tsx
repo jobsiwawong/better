@@ -2,8 +2,24 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, CornerLeftUp, Plus, Trash2, X } from "lucide-react";
+import { Check, CornerLeftUp, GripVertical, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +54,7 @@ import {
   moveTask,
   nestTask,
   removeAttachment,
+  reorderSubtasks,
   restoreTask,
   toggleSubtask,
   uncompleteTask,
@@ -108,7 +125,44 @@ export function TaskModal({
   const [tags, setTags] = React.useState(allTags);
   const [owners, setOwners] = React.useState(allOwners);
 
+  // Local, optimistic copy of the subtask order so a drag-reorder shows
+  // instantly; re-synced from props whenever the server data changes (the
+  // same render-time sync pattern the board uses for its columns).
+  const [subtasks, setSubtasks] = React.useState(task.subtasks);
+  const [syncedSubtasks, setSyncedSubtasks] = React.useState(task.subtasks);
+  if (task.subtasks !== syncedSubtasks) {
+    setSyncedSubtasks(task.subtasks);
+    setSubtasks(task.subtasks);
+  }
+
+  const subtaskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  );
+
   const refresh = () => router.refresh();
+
+  function handleSubtaskDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = subtasks.findIndex((s) => s.id === active.id);
+    const newIndex = subtasks.findIndex((s) => s.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const prevOrder = subtasks;
+    const next = arrayMove(subtasks, oldIndex, newIndex);
+    setSubtasks(next);
+    reorderSubtasks(task.id, next.map((s) => s.id)).then(refresh);
+    pushUndo({
+      label: "reorder subtasks",
+      undo: () => {
+        setSubtasks(prevOrder);
+        return reorderSubtasks(task.id, prevOrder.map((s) => s.id)).then(refresh);
+      },
+      redo: () => {
+        setSubtasks(next);
+        return reorderSubtasks(task.id, next.map((s) => s.id)).then(refresh);
+      },
+    });
+  }
 
   const commitField = (patch: Parameters<typeof updateTask>[1]) => {
     updateTask(task.id, patch).then(refresh);
@@ -423,64 +477,52 @@ export function TaskModal({
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Subtasks</Label>
           <div className="space-y-1.5">
-            {task.subtasks.map((s) => (
-              <div key={s.id} className="flex items-center gap-2">
-                <Checkbox
-                  checked={s.completed}
-                  onCheckedChange={() => toggleSubtask(s.id).then(refresh)}
-                />
-                <Input
-                  key={s.title}
-                  defaultValue={s.title}
-                  aria-label="Subtask title"
-                  className={
-                    "h-8 flex-1 border-none bg-transparent px-1 text-sm shadow-none hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:ring-0 " +
-                    (s.completed ? "text-muted-foreground line-through" : "")
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  }}
-                  onBlur={(e) => {
-                    const next = e.target.value.trim();
-                    if (!next || next === s.title) {
-                      e.target.value = s.title;
-                      return;
-                    }
-                    const prev = s.title;
-                    updateSubtask(s.id, next).then(refresh);
-                    pushUndo({
-                      label: `rename subtask "${prev}"`,
-                      undo: () => updateSubtask(s.id, prev).then(refresh),
-                      redo: () => updateSubtask(s.id, next).then(refresh),
-                    });
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    deleteSubtask(s.id).then(refresh);
-                    // Undo recreates the subtask, so track the fresh id for redo.
-                    const ref = { id: s.id };
-                    pushUndo({
-                      label: `delete subtask "${s.title}"`,
-                      undo: async () => {
-                        const created = await addSubtask(task.id, s.title);
-                        if (s.completed) await toggleSubtask(created.id);
-                        ref.id = created.id;
-                        refresh();
-                      },
-                      redo: async () => {
-                        await deleteSubtask(ref.id);
-                        refresh();
-                      },
-                    });
-                  }}
-                  className="text-muted-foreground hover:text-destructive"
-                  aria-label="Delete subtask"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ))}
+            <DndContext
+              id="subtasks-dnd"
+              sensors={subtaskSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleSubtaskDragEnd}
+            >
+              <SortableContext
+                items={subtasks.map((s) => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {subtasks.map((s) => (
+                  <SortableSubtaskRow
+                    key={s.id}
+                    subtask={s}
+                    onToggle={() => toggleSubtask(s.id).then(refresh)}
+                    onRename={(next) => {
+                      const prev = s.title;
+                      updateSubtask(s.id, next).then(refresh);
+                      pushUndo({
+                        label: `rename subtask "${prev}"`,
+                        undo: () => updateSubtask(s.id, prev).then(refresh),
+                        redo: () => updateSubtask(s.id, next).then(refresh),
+                      });
+                    }}
+                    onDelete={() => {
+                      deleteSubtask(s.id).then(refresh);
+                      // Undo recreates the subtask, so track the fresh id for redo.
+                      const ref = { id: s.id };
+                      pushUndo({
+                        label: `delete subtask "${s.title}"`,
+                        undo: async () => {
+                          const created = await addSubtask(task.id, s.title);
+                          if (s.completed) await toggleSubtask(created.id);
+                          ref.id = created.id;
+                          refresh();
+                        },
+                        redo: async () => {
+                          await deleteSubtask(ref.id);
+                          refresh();
+                        },
+                      });
+                    }}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
             <div className="flex items-center gap-2">
               <Input
                 value={subtaskDraft}
@@ -714,5 +756,67 @@ export function TaskModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SortableSubtaskRow({
+  subtask,
+  onToggle,
+  onRename,
+  onDelete,
+}: {
+  subtask: { id: string; title: string; completed: boolean };
+  onToggle: () => void;
+  onRename: (next: string) => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: subtask.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn("flex items-center gap-1.5", isDragging && "opacity-60")}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder subtask"
+        title="Drag to reorder"
+        className="cursor-grab touch-none text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="size-3.5" />
+      </button>
+      <Checkbox checked={subtask.completed} onCheckedChange={onToggle} />
+      <Input
+        key={subtask.title}
+        defaultValue={subtask.title}
+        aria-label="Subtask title"
+        className={cn(
+          "h-8 flex-1 border-none bg-transparent px-1 text-sm shadow-none hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:ring-0",
+          subtask.completed && "text-muted-foreground line-through"
+        )}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        onBlur={(e) => {
+          const next = e.target.value.trim();
+          if (!next || next === subtask.title) {
+            e.target.value = subtask.title;
+            return;
+          }
+          onRename(next);
+        }}
+      />
+      <button
+        type="button"
+        onClick={onDelete}
+        className="text-muted-foreground hover:text-destructive"
+        aria-label="Delete subtask"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
   );
 }

@@ -28,6 +28,7 @@ import {
   moveTask,
   nestTask,
   quickCreateTask,
+  reorderSubtasks,
   restoreTask,
   toggleSubtask,
   uncompleteTask,
@@ -131,6 +132,12 @@ export function KanbanBoard({
 
   const handleToggleSubtask = (subtaskId: string) => {
     toggleSubtask(subtaskId).then(() => router.refresh());
+  };
+
+  // Persist a subtask reorder from a card. Optimistic ordering + undo are
+  // handled inside the card; this just writes the new order and refreshes.
+  const handleReorderSubtasks = (taskId: string, orderedIds: string[]) => {
+    reorderSubtasks(taskId, orderedIds).then(() => router.refresh());
   };
 
   const handleUnnest = (child: BoardChildTask) => {
@@ -315,6 +322,7 @@ export function KanbanBoard({
                 onUncompleteTask={handleUncomplete}
                 onUnnestTask={handleUnnest}
                 onToggleSubtask={handleToggleSubtask}
+                onReorderSubtasks={handleReorderSubtasks}
                 onQuickAdd={(title) =>
                   quickCreateTask(title, column.id).then((created) => {
                     router.refresh();

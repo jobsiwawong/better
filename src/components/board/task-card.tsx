@@ -1,12 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { useDroppable } from "@dnd-kit/core";
-import { useSortable } from "@dnd-kit/sortable";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, CornerLeftUp, Link2, NotebookText } from "lucide-react";
+import { Check, CornerLeftUp, GripVertical, Link2, NotebookText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fireConfetti } from "@/lib/confetti";
+import { pushUndo } from "@/lib/undo-store";
 import type { BoardTask, BoardChildTask } from "@/lib/queries/board";
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -129,6 +143,8 @@ function ChildRow({
 }
 
 // A checklist sub-task row, styled to match the nested-task rows above.
+// Drag-sortable via a grip handle that appears on hover; the handle stops
+// pointer propagation so grabbing it never starts the parent card's drag.
 function SubtaskRow({
   subtask,
   onToggle,
@@ -136,8 +152,32 @@ function SubtaskRow({
   subtask: { id: string; title: string; completed: boolean };
   onToggle: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: subtask.id });
   return (
-    <div className="group/sub flex items-center gap-1.5 rounded-lg px-1 py-1 text-xs hover:bg-accent/50">
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "group/sub flex items-center gap-1 rounded-lg px-1 py-1 text-xs hover:bg-accent/50",
+        isDragging && "opacity-60"
+      )}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          listeners?.onPointerDown?.(e);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Drag to reorder subtask"
+        title="Drag to reorder"
+        className="shrink-0 cursor-grab touch-none text-muted-foreground/30 opacity-0 transition-opacity hover:text-muted-foreground group-hover/sub:opacity-100 active:cursor-grabbing"
+      >
+        <GripVertical className="size-3" />
+      </button>
       <button
         type="button"
         aria-label={
@@ -175,6 +215,7 @@ export function TaskCard({
   onUncompleteTask,
   onUnnestTask,
   onToggleSubtask,
+  onReorderSubtasks,
   disableDrag,
   nestActive,
 }: {
@@ -184,6 +225,7 @@ export function TaskCard({
   onUncompleteTask: (task: BoardTask | BoardChildTask) => void;
   onUnnestTask: (task: BoardChildTask) => void;
   onToggleSubtask: (subtaskId: string) => void;
+  onReorderSubtasks: (taskId: string, orderedIds: string[]) => void;
   disableDrag?: boolean;
   /** True when a different task is being dragged and could nest here. */
   nestActive?: boolean;
@@ -194,6 +236,42 @@ export function TaskCard({
       data: { type: "task", columnId: task.columnId },
       disabled: disableDrag,
     });
+
+  // Optimistic local copy of subtask order so a drag-reorder shows instantly;
+  // re-synced from props whenever the server data changes.
+  const [subtasks, setSubtasks] = React.useState(task.subtasks);
+  const [syncedSubtasks, setSyncedSubtasks] = React.useState(task.subtasks);
+  if (task.subtasks !== syncedSubtasks) {
+    setSyncedSubtasks(task.subtasks);
+    setSubtasks(task.subtasks);
+  }
+
+  const subtaskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  );
+
+  function handleSubtaskDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = subtasks.findIndex((s) => s.id === active.id);
+    const newIndex = subtasks.findIndex((s) => s.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const prevOrder = subtasks;
+    const next = arrayMove(subtasks, oldIndex, newIndex);
+    setSubtasks(next);
+    onReorderSubtasks(task.id, next.map((s) => s.id));
+    pushUndo({
+      label: "reorder subtasks",
+      undo: () => {
+        setSubtasks(prevOrder);
+        onReorderSubtasks(task.id, prevOrder.map((s) => s.id));
+      },
+      redo: () => {
+        setSubtasks(next);
+        onReorderSubtasks(task.id, next.map((s) => s.id));
+      },
+    });
+  }
 
   // Center-band droppable that captures "drop onto this card to nest".
   const { setNodeRef: setNestRef, isOver: isNestOver } = useDroppable({
@@ -285,7 +363,7 @@ export function TaskCard({
         )}
       </div>
 
-      {(children.length > 0 || task.subtasks.length > 0) && (
+      {(children.length > 0 || subtasks.length > 0) && (
         <div className="mt-2 space-y-0.5 border-l-2 border-border pl-2">
           {children.map((child) => (
             <ChildRow
@@ -297,13 +375,27 @@ export function TaskCard({
               onUnnest={() => onUnnestTask(child)}
             />
           ))}
-          {task.subtasks.map((subtask) => (
-            <SubtaskRow
-              key={subtask.id}
-              subtask={subtask}
-              onToggle={() => onToggleSubtask(subtask.id)}
-            />
-          ))}
+          {subtasks.length > 0 && (
+            <DndContext
+              id={`card-subtasks-${task.id}`}
+              sensors={subtaskSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleSubtaskDragEnd}
+            >
+              <SortableContext
+                items={subtasks.map((s) => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {subtasks.map((subtask) => (
+                  <SubtaskRow
+                    key={subtask.id}
+                    subtask={subtask}
+                    onToggle={() => onToggleSubtask(subtask.id)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          )}
         </div>
       )}
 

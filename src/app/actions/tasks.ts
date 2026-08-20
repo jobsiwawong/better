@@ -375,6 +375,21 @@ export async function addSubtask(taskId: string, title: string) {
   return subtask;
 }
 
+// Persist a new order for a task's checklist subtasks. `orderedIds` is the
+// full list of that task's subtask ids in their desired order; each row's
+// `order` is set to its index.
+export async function reorderSubtasks(taskId: string, orderedIds: string[]) {
+  await db.$transaction(
+    orderedIds.map((id, index) =>
+      db.subtask.updateMany({
+        where: { id, taskId },
+        data: { order: index },
+      })
+    )
+  );
+  revalidateBoardPages();
+}
+
 export async function toggleSubtask(id: string) {
   const subtask = await db.subtask.findUniqueOrThrow({ where: { id } });
   await db.subtask.update({
